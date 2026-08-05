@@ -8,7 +8,7 @@ The application includes an animated desktop assistant that provides encourageme
 
 ## Target User
 
-The initial target user is myself, however this application may prove useful for those who:
+The initial target user is myself, a senior computer student who is preparing to graduate and enter the workforce; however this application may prove useful for those who:
 
 - Work primarily on a desktop or laptop
 - Has difficulty maintaining focus
@@ -18,7 +18,7 @@ The initial target user is myself, however this application may prove useful for
 
 ## Problem
 
-I have tried various applications to help keep track of past and and ongoing tasks / events in my life. In addition to this,
+I have tried various applications to help keep track of past and ongoing tasks / events in my life. In addition to this,
 having a way personalized, fun, and engaging way to increase productivity and form better habits is something that I have always
 sought, yet was never able to find. I aim for asuna to be a solution to this by connecting tasks, focus sessions, desktop activity, research, scheduling, and productivity insights in one interface. 
 
@@ -30,7 +30,7 @@ A user should be able to:
 1. Sign into the application.
 2. Create or select a task.
 3. Start a focus session.
-4. Schedule events or conduct research
+4. Schedule events and browse the internet.
 5. Receive break and distraction reminders.
 6. Finish the session.
 7. Review statistics and productivity insights.
@@ -49,6 +49,7 @@ The first working version should include:
 - Basic active-application tracking
 - Daily and weekly productivity statistics
 - Structured AI-generated productivity insights
+- Capacity to browse the internet
 - Animated assistant with speech bubbles
 - Customizable reminder preferences
 
