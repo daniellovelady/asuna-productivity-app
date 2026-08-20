@@ -27,7 +27,12 @@
  */
 
 import './index.css';
+import { mountApp } from './renderer/mountApp';
 
-console.log(
-  '👋 This message is being logged by "renderer.ts", included via Vite',
-);
+const root = document.getElementById('app');
+
+if (root) {
+  mountApp(root);
+} else {
+  console.error('Renderer root element #app was not found.');
+}

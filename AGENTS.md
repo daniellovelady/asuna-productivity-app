@@ -37,6 +37,13 @@
 - Do not collect keystrokes, screenshots, document contents, or browser history.
 - Ask before weakening a security setting.
 
+## Scope Control
+
+- Make only the changes necessary to satisfy the current task.
+- Do not make opportunistic cleanup, renaming, styling, branding, or refactoring changes.
+- Do not modify unrelated code even if the change appears beneficial.
+- If you notice an unrelated improvement, mention it after completing the task instead of implementing it.
+
 ## Testing and Verification
 
 After changing code:
