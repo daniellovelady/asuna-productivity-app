@@ -1,7 +1,7 @@
 ## Technology Stack
 
 - Use Electron for desktop integration.
-- Use React for renderer UI.
+- Use React and React DOM for renderer UI.
 - Use TypeScript for Electron and renderer code.
 - Use Vite and Electron Forge for development and packaging.
 - Use Supabase for authentication and cloud persistence.
