@@ -21,6 +21,43 @@ Only one focus session may be active at a time.
 
 ## Required Operations
 
+### Session Options
+
+### Session Options
+
+- The default focus session duration is 25 minutes.
+- While no focus session is active, the time displayed on the focus timer
+  should be clickable.
+- Clicking the displayed time should open a dropdown allowing the user to
+  select the focus session duration.
+- Available durations are 5 through 60 minutes inclusive, in 5-minute
+  increments.
+- Session duration may only be changed while no session is active.
+- The duration selector must be disabled or unavailable while a session
+  is running or paused.
+- When a session starts, the selected duration becomes part of the
+  authoritative session state owned by the Electron main process.
+- The Electron main process must validate the requested duration.
+- Invalid durations must not create a session.
+- The renderer should display the remaining session time as a countdown.
+- Paused time must not reduce the remaining focus time.
+- When remaining time reaches zero, the session should complete and the
+  timer must not become negative.
+
+### Timer Calculation
+
+The Electron main process is responsible for calculating elapsed focus time.
+
+The React renderer is responsible for calculating and displaying remaining time:
+
+remaining time = target duration - elapsed focus time
+
+The renderer should display remaining time as a countdown.
+
+Paused time must not count toward elapsed focus time.
+
+Remaining time must never display a negative value.
+
 ### Start
 
 Starting a session should:
@@ -107,3 +144,9 @@ The feature is complete when:
 8. The React UI accurately reflects main-process state.
 9. The renderer does not receive unrestricted Electron or Node access.
 10. Relevant tests, lint, type checks, and build checks are run and reported.
+11. A user can select a session duration from 5 to 60 minutes in
+    5-minute increments before starting a session.
+12. The selected duration cannot be changed while a session is running
+    or paused.
+13. Reloading the renderer during a session restores the correct selected
+    duration and remaining time.
