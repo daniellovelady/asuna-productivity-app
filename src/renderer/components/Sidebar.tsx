@@ -1,3 +1,5 @@
+import { useAuth } from '../hooks/useAuth';
+
 const NAV_ITEMS = [
   { label: 'Dashboard', selected: true },
   { label: 'Tasks', selected: false },
@@ -7,6 +9,12 @@ const NAV_ITEMS = [
 ] as const;
 
 export function Sidebar(): JSX.Element {
+  const { signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+  };
+
   return (
     <nav className="sidebar" aria-label="Main navigation">
       <h1 className="sidebar-title">A.S.U.N.A.</h1>
@@ -23,6 +31,13 @@ export function Sidebar(): JSX.Element {
           </li>
         ))}
       </ul>
+      <button
+        className="sidebar-sign-out"
+        type="button"
+        onClick={handleSignOut}
+      >
+        Sign Out
+      </button>
     </nav>
   );
 }
