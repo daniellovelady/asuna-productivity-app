@@ -15,4 +15,6 @@ export const focusSessionService = {
   pause: () => getFocusApi().pause(),
   resume: () => getFocusApi().resume(),
   stop: () => getFocusApi().stop(),
+  acknowledgeCompletion: (sessionId: string) =>
+    getFocusApi().acknowledgeCompletion(sessionId),
 };

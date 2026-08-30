@@ -70,4 +70,23 @@ export function registerFocusHandlers(): void {
       handleFocusError(error);
     }
   });
+
+  ipcMain.handle('focus:acknowledgeCompletion', (_event, payload: unknown) => {
+    try {
+      if (
+        typeof payload !== 'object'
+        || payload === null
+        || !('sessionId' in payload)
+        || typeof (payload as { sessionId: unknown }).sessionId !== 'string'
+      ) {
+        throw new Error('Invalid acknowledge completion payload.');
+      }
+
+      return getFocusEngine().acknowledgeCompletion(
+        (payload as { sessionId: string }).sessionId,
+      );
+    } catch (error) {
+      handleFocusError(error);
+    }
+  });
 }

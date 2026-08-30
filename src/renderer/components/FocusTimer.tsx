@@ -1,22 +1,32 @@
 import { useEffect, useRef, useState } from 'react';
 import { FOCUS_DURATION_OPTIONS } from '../../shared/focus/validation';
-import { useFocusSession } from '../hooks/useFocusSession';
+import type { useFocusSession } from '../hooks/useFocusSession';
 
-export function FocusTimer(): JSX.Element {
+type FocusSessionControls = ReturnType<typeof useFocusSession>;
+
+interface FocusTimerProps {
+  focusSession: FocusSessionControls;
+}
+
+export function FocusTimer({ focusSession }: FocusTimerProps): JSX.Element {
   const {
     error,
+    saveError,
     isLoading,
     displayTime,
     selectedDurationMinutes,
     isIdle,
     isRunning,
     isPaused,
+    hasUnsavedCompletion,
+    isSavingCompletion,
     setDuration,
     start,
     pause,
     resume,
     stop,
-  } = useFocusSession();
+    retrySave,
+  } = focusSession;
 
   const [isDurationMenuOpen, setIsDurationMenuOpen] = useState(false);
   const durationMenuRef = useRef<HTMLDivElement>(null);
@@ -41,6 +51,8 @@ export function FocusTimer(): JSX.Element {
       document.removeEventListener('mousedown', handlePointerDown);
     };
   }, [isDurationMenuOpen]);
+
+  const startDisabled = hasUnsavedCompletion || isSavingCompletion;
 
   return (
     <section className="card focus-timer" aria-label="Focus timer">
@@ -94,9 +106,24 @@ export function FocusTimer(): JSX.Element {
         </p>
       ) : null}
 
+      {saveError ? (
+        <div className="focus-timer-error" role="alert">
+          <p>Session finished but could not be saved.</p>
+          <p>{saveError}</p>
+          <button type="button" className="retry-button" onClick={() => void retrySave()}>
+            Retry save
+          </button>
+        </div>
+      ) : null}
+
       <div className="focus-timer-controls">
         {isIdle ? (
-          <button type="button" className="focus-timer-button" onClick={() => void start()}>
+          <button
+            type="button"
+            className="focus-timer-button"
+            onClick={() => void start()}
+            disabled={startDisabled}
+          >
             Start Focus Session
           </button>
         ) : null}

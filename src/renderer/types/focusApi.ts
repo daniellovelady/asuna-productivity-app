@@ -10,6 +10,7 @@ export interface FocusApi {
   pause: () => Promise<FocusEngineState>;
   resume: () => Promise<FocusEngineState>;
   stop: () => Promise<{ state: FocusEngineState; completed: CompletedFocusSession }>;
+  acknowledgeCompletion: (sessionId: string) => Promise<FocusEngineState>;
 }
 
 declare global {

@@ -96,6 +96,8 @@ describe('FocusEngine', () => {
 
     const state = engine.getState();
     expect(state.activeSession).toBeNull();
+    expect(state.pendingCompletion).not.toBeNull();
+    expect(state.pendingCompletion?.targetDurationMs).toBe(5 * 60_000);
   });
 
   it('returns a completed session and clears active state on stop', () => {
@@ -109,9 +111,64 @@ describe('FocusEngine', () => {
     const result = engine.stop();
 
     expect(result.state.activeSession).toBeNull();
+    expect(result.state.pendingCompletion).not.toBeNull();
+    expect(result.state.pendingCompletion?.id).toBe(result.completed.id);
     expect(result.completed.elapsedFocusMs).toBe(90_000);
     expect(result.completed.targetDurationMs).toBe(25 * 60_000);
     expect(result.completed.endedAt).toBe(91_000);
+  });
+
+  it('uses UUID session ids', () => {
+    const engine = new FocusEngine(() => 1_000);
+    engine.start();
+
+    const sessionId = engine.getState().activeSession?.id;
+    expect(sessionId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
+  });
+
+  it('blocks start while pending completion is unsaved', () => {
+    const clock = createClock(0);
+    const engine = new FocusEngine(clock.now);
+
+    engine.setDuration(5);
+    engine.start();
+    clock.advance(5 * 60_000);
+    engine.getState();
+
+    expect(() => engine.start()).toThrow(FocusEngineError);
+    expect(() => engine.start()).toThrow(
+      'Finish saving the previous session before starting a new one.',
+    );
+  });
+
+  it('does not overwrite pending completion', () => {
+    const clock = createClock(0);
+    const engine = new FocusEngine(clock.now);
+
+    engine.setDuration(5);
+    engine.start();
+    clock.advance(5 * 60_000);
+    const firstPending = engine.getState().pendingCompletion;
+
+    expect(firstPending).not.toBeNull();
+    expect(engine.getState().pendingCompletion?.id).toBe(firstPending?.id);
+  });
+
+  it('acknowledges completion only for matching session id', () => {
+    const clock = createClock(1_000);
+    const engine = new FocusEngine(clock.now);
+
+    engine.start();
+    clock.advance(10_000);
+    const { completed } = engine.stop();
+
+    engine.acknowledgeCompletion('wrong-id');
+    expect(engine.getState().pendingCompletion).not.toBeNull();
+
+    engine.acknowledgeCompletion(completed.id);
+    expect(engine.getState().pendingCompletion).toBeNull();
   });
 
   it('allows changing duration only while idle', () => {

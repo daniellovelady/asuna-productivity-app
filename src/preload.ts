@@ -13,6 +13,8 @@ const focusApi = {
   resume: (): Promise<FocusEngineState> => ipcRenderer.invoke('focus:resume'),
   stop: (): Promise<{ state: FocusEngineState; completed: CompletedFocusSession }> =>
     ipcRenderer.invoke('focus:stop'),
+  acknowledgeCompletion: (sessionId: string): Promise<FocusEngineState> =>
+    ipcRenderer.invoke('focus:acknowledgeCompletion', { sessionId }),
 };
 
 contextBridge.exposeInMainWorld('focusApi', focusApi);

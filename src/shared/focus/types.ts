@@ -22,6 +22,7 @@ export interface CompletedFocusSession {
 export interface FocusEngineState {
   activeSession: FocusSessionSnapshot | null;
   selectedDurationMinutes: number;
+  pendingCompletion: CompletedFocusSession | null;
 }
 
 export class FocusEngineError extends Error {

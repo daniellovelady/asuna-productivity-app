@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import {
   CompletedFocusSession,
   FocusEngineError,
@@ -29,8 +30,8 @@ export function getElapsedFocusMs(session: ActiveFocusSession, now: number): num
   return now - session.startedAt - session.accumulatedPausedMs;
 }
 
-function createSessionId(now: number): string {
-  return `focus-${now}`;
+function createSessionId(): string {
+  return randomUUID();
 }
 
 function toSnapshot(session: ActiveFocusSession, now: number): FocusSessionSnapshot {
@@ -60,6 +61,8 @@ export class FocusEngine {
   private activeSession: ActiveFocusSession | null = null;
 
   private selectedDurationMinutes = DEFAULT_DURATION_MINUTES;
+
+  private pendingCompletion: CompletedFocusSession | null = null;
 
   private autoCompleteTimer: NodeJS.Timeout | null = null;
 
@@ -92,6 +95,7 @@ export class FocusEngine {
     return {
       activeSession: this.activeSession ? toSnapshot(this.activeSession, now) : null,
       selectedDurationMinutes: this.selectedDurationMinutes,
+      pendingCompletion: this.pendingCompletion,
     };
   }
 
@@ -107,6 +111,12 @@ export class FocusEngine {
   }
 
   start(): FocusEngineState {
+    if (this.pendingCompletion !== null) {
+      throw new FocusEngineError(
+        'Finish saving the previous session before starting a new one.',
+      );
+    }
+
     if (this.activeSession !== null) {
       throw new FocusEngineError('A focus session is already active.');
     }
@@ -114,7 +124,7 @@ export class FocusEngine {
     const now = this.now();
 
     this.activeSession = {
-      id: createSessionId(now),
+      id: createSessionId(),
       status: 'running',
       targetDurationMs: this.selectedDurationMinutes * 60_000,
       startedAt: now,
@@ -162,14 +172,42 @@ export class FocusEngine {
       throw new FocusEngineError('No active focus session to stop.');
     }
 
-    const now = this.now();
-    const completed = toCompletedSession(this.activeSession, now);
-    this.activeSession = null;
+    const completed = this.completeActiveSession();
 
     return {
       state: this.getState(),
       completed,
     };
+  }
+
+  acknowledgeCompletion(sessionId: string): FocusEngineState {
+    if (this.pendingCompletion === null) {
+      return this.getState();
+    }
+
+    if (this.pendingCompletion.id !== sessionId) {
+      return this.getState();
+    }
+
+    this.pendingCompletion = null;
+
+    return this.getState();
+  }
+
+  private completeActiveSession(): CompletedFocusSession {
+    if (this.activeSession === null) {
+      throw new FocusEngineError('No active focus session to complete.');
+    }
+
+    const now = this.now();
+    const completed = toCompletedSession(this.activeSession, now);
+    this.activeSession = null;
+
+    if (this.pendingCompletion === null) {
+      this.pendingCompletion = completed;
+    }
+
+    return completed;
   }
 
   private checkAutoComplete(): void {
@@ -181,7 +219,7 @@ export class FocusEngine {
     const elapsedFocusMs = getElapsedFocusMs(this.activeSession, now);
 
     if (elapsedFocusMs >= this.activeSession.targetDurationMs) {
-      this.activeSession = null;
+      this.completeActiveSession();
     }
   }
 }
