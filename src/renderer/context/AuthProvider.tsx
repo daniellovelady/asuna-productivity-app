@@ -13,6 +13,7 @@ import {
   type AuthActionResult,
   type AuthCredentials,
 } from '../services/authService';
+import { activityService } from '../services/activityService';
 
 type AuthContextValue = {
   session: Session | null;
@@ -60,6 +61,11 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
 
     const { unsubscribe } = authService.onAuthStateChange((nextSession) => {
       if (isMounted) {
+        if (nextSession === null) {
+          void activityService.disable().catch(() => undefined);
+          void activityService.setAuthContext(null).catch(() => undefined);
+        }
+
         setSession(nextSession);
         setIsLoading(false);
       }
@@ -95,6 +101,8 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
 
   const signOut = useCallback(async () => {
     setError(null);
+    await activityService.disable().catch(() => undefined);
+    await activityService.setAuthContext(null).catch(() => undefined);
     const result = await authService.signOut();
 
     if (result.error) {

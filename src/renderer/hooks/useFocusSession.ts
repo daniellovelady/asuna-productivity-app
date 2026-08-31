@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CompletedFocusSession, FocusEngineState } from '../../shared/focus/types';
+import { activityCloudService } from '../services/activityCloudService';
+import { activityService } from '../services/activityService';
 import { createCompletionPersistence } from '../services/completionPersistence';
 import { focusSessionCloudService } from '../services/focusSessionCloudService';
 import { focusSessionService } from '../services/focusSession';
@@ -50,6 +52,21 @@ export function useFocusSession(
     }),
   );
 
+  const persistSessionActivitySamples = useCallback(async (sessionId: string) => {
+    try {
+      const samples = await activityService.getBufferedSessionSamples(sessionId);
+
+      if (samples.length === 0) {
+        return;
+      }
+
+      await activityCloudService.bulkInsertSessionSamples(sessionId, samples);
+      await activityService.acknowledgeSessionSamplesPersisted(sessionId);
+    } catch {
+      // Retain buffer in main process for retry during this app lifetime.
+    }
+  }, []);
+
   const syncPersistenceState = useCallback(() => {
     const persistenceState = persistenceRef.current.getState();
     setSaveError(persistenceState.saveError);
@@ -82,10 +99,11 @@ export function useFocusSession(
         pendingCompletionTaskTitleRef.current = null;
         const nextState = await focusSessionService.getState();
         setState(nextState);
+        await persistSessionActivitySamples(completed.id);
         await options?.onSessionSaved?.();
       }
     },
-    [syncPersistenceState, options?.onSessionSaved],
+    [syncPersistenceState, options?.onSessionSaved, persistSessionActivitySamples],
   );
 
   const handlePendingCompletion = useCallback(

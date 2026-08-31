@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { activityService } from '../services/activityService';
 import {
   taskService,
   TaskConflictError,
@@ -99,6 +100,14 @@ export function TaskProvider({ children }: { children: ReactNode }): JSX.Element
   useEffect(() => {
     void reloadTasks();
   }, [reloadTasks]);
+
+  useEffect(() => {
+    if (!session) {
+      return;
+    }
+
+    void activityService.updateTriggerContext(activeTasks.length).catch(() => undefined);
+  }, [session, activeTasks.length]);
 
   const handleConflict = useCallback(async () => {
     setMutationError('This task was updated elsewhere. Reloading…');

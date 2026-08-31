@@ -192,6 +192,22 @@ describe('FocusEngine', () => {
       'Duration must be an integer from 5 to 60 in 5-minute increments.',
     );
   });
+  it('notifies completion listeners when a session ends', () => {
+    const clock = createClock(1_000);
+    const engine = new FocusEngine(clock.now);
+    const completedSessions: string[] = [];
+
+    engine.setOnSessionCompleted((completed) => {
+      completedSessions.push(completed.id);
+    });
+
+    engine.setDuration(5);
+    engine.start();
+    clock.advance(5 * 60_000);
+    engine.getState();
+
+    expect(completedSessions).toHaveLength(1);
+  });
 });
 
 describe('getElapsedFocusMs', () => {

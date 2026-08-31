@@ -57,6 +57,8 @@ function toCompletedSession(session: ActiveFocusSession, now: number): Completed
   };
 }
 
+export type FocusSessionCompletedListener = (completed: CompletedFocusSession) => void;
+
 export class FocusEngine {
   private activeSession: ActiveFocusSession | null = null;
 
@@ -66,7 +68,13 @@ export class FocusEngine {
 
   private autoCompleteTimer: NodeJS.Timeout | null = null;
 
+  private onSessionCompleted: FocusSessionCompletedListener | null = null;
+
   constructor(private readonly now: NowFn = Date.now) {}
+
+  setOnSessionCompleted(listener: FocusSessionCompletedListener | null): void {
+    this.onSessionCompleted = listener;
+  }
 
   startAutoCompleteTick(): void {
     if (this.autoCompleteTimer !== null) {
@@ -206,6 +214,8 @@ export class FocusEngine {
     if (this.pendingCompletion === null) {
       this.pendingCompletion = completed;
     }
+
+    this.onSessionCompleted?.(completed);
 
     return completed;
   }
