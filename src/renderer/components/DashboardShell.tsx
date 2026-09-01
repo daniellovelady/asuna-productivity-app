@@ -6,6 +6,7 @@ import { Sidebar } from './Sidebar';
 import { Statistics } from './Statistics';
 import { TaskPanel } from './TaskPanel';
 import { TrackingControls } from './TrackingControls';
+import { useAnalytics } from '../hooks/useAnalytics';
 import { useActivityTracking } from '../hooks/useActivityTracking';
 import { useAssistant } from '../hooks/useAssistant';
 import { useAuth } from '../hooks/useAuth';
@@ -17,9 +18,13 @@ export function DashboardShell(): JSX.Element {
   const { user } = useAuth();
   const { selectedTaskId, selectedTask } = useTasks();
   const { reloadHistory } = useFocusHistory();
+  const { reloadAnalytics } = useAnalytics();
   const focusSession = useFocusSession(selectedTaskId, {
     selectedTaskTitle: selectedTask?.title ?? null,
-    onSessionSaved: reloadHistory,
+    onSessionSaved: async () => {
+      await reloadHistory();
+      await reloadAnalytics();
+    },
   });
   const activityTracking = useActivityTracking(user !== null, user?.id ?? null);
   const assistant = useAssistant();
