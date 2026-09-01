@@ -6,6 +6,10 @@ import type {
   BufferedActivitySample,
 } from './shared/activity/types';
 import type {
+  CoachAnalyzeRequest,
+  CoachAnalyzeResponse,
+} from './renderer/types/coachApi';
+import type {
   CompletedFocusSession,
   FocusEngineState,
 } from './shared/focus/types';
@@ -102,5 +106,35 @@ const activityApi = {
   },
 };
 
+function isCoachAnalyzeRequest(value: unknown): value is CoachAnalyzeRequest {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const payload = value as Record<string, unknown>;
+  const allowedKeys = new Set(['accessToken', 'question', 'conversationId']);
+  if (Object.keys(payload).some((key) => !allowedKeys.has(key))) {
+    return false;
+  }
+
+  return typeof payload.accessToken === 'string'
+    && payload.accessToken.length > 0
+    && payload.accessToken.length <= 8192
+    && typeof payload.question === 'string'
+    && payload.question.length > 0
+    && payload.question.length <= 2000
+    && (payload.conversationId === undefined || typeof payload.conversationId === 'string');
+}
+
+const coachApi = {
+  analyze: (request: CoachAnalyzeRequest): Promise<CoachAnalyzeResponse> => {
+    if (!isCoachAnalyzeRequest(request)) {
+      return Promise.reject(new Error('Invalid coach analyze request.'));
+    }
+    return ipcRenderer.invoke('coach:analyze', request);
+  },
+};
+
 contextBridge.exposeInMainWorld('focusApi', focusApi);
 contextBridge.exposeInMainWorld('activityApi', activityApi);
+contextBridge.exposeInMainWorld('coachApi', coachApi);

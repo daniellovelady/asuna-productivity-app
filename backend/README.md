@@ -1,0 +1,33 @@
+# A.S.U.N.A. Coach Backend
+
+Read-only productivity coach API (FastAPI + OpenAI Agents SDK).
+
+## Requirements
+
+- Python **3.12.x** (tested) or 3.11.x
+- `requires-python = ">=3.11,<3.14"` — Python 3.14 is not supported
+
+## Setup (Windows PowerShell)
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -e ".[dev]"
+copy .env.example .env
+# Edit .env with your keys
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+## Tests
+
+```powershell
+pytest -q
+```
+
+Default tests mock OpenAI and do not consume API credits.
+
+## Opt-in reviewer evaluation (billable)
+
+```powershell
+python scripts/reviewer_eval.py --live
+```

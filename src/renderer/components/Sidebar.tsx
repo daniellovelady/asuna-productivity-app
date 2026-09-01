@@ -1,14 +1,21 @@
 import { useAuth } from '../hooks/useAuth';
 
-const NAV_ITEMS = [
-  { label: 'Dashboard', selected: true },
-  { label: 'Tasks', selected: false },
-  { label: 'History', selected: false },
-  { label: 'Insights', selected: false },
-  { label: 'Settings', selected: false },
-] as const;
+export type AppView = 'dashboard' | 'insights';
 
-export function Sidebar(): JSX.Element {
+const NAV_ITEMS: Array<{ label: string; view: AppView }> = [
+  { label: 'Dashboard', view: 'dashboard' },
+  { label: 'Tasks', view: 'dashboard' },
+  { label: 'History', view: 'dashboard' },
+  { label: 'Insights', view: 'insights' },
+  { label: 'Settings', view: 'dashboard' },
+];
+
+type SidebarProps = {
+  activeView: AppView;
+  onNavigate: (view: AppView) => void;
+};
+
+export function Sidebar({ activeView, onNavigate }: SidebarProps): JSX.Element {
   const { signOut } = useAuth();
 
   const handleSignOut = async () => {
@@ -21,13 +28,19 @@ export function Sidebar(): JSX.Element {
       <ul className="sidebar-nav">
         {NAV_ITEMS.map((item) => (
           <li key={item.label}>
-            <span
+            <button
+              type="button"
               className={
-                item.selected ? 'nav-item nav-item--selected' : 'nav-item'
+                item.view === activeView && item.label === 'Insights'
+                  ? 'nav-item nav-item--selected nav-item--button'
+                  : item.view === 'dashboard' && activeView === 'dashboard' && item.label === 'Dashboard'
+                    ? 'nav-item nav-item--selected nav-item--button'
+                    : 'nav-item nav-item--button'
               }
+              onClick={() => onNavigate(item.view)}
             >
               {item.label}
-            </span>
+            </button>
           </li>
         ))}
       </ul>

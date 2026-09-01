@@ -4,6 +4,7 @@ import started from 'electron-squirrel-startup';
 import { bootstrapActivityProvider, getActivityTracker } from './main/activity/activityTracker';
 import { registerActivityHandlers, setActivityWebContents } from './main/ipc/activityHandlers';
 import { registerFocusHandlers } from './main/ipc/focusHandlers';
+import { registerCoachHandlers } from './main/ipc/coachHandlers';
 import { getFocusEngine } from './main/focus/focusEngine';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
@@ -40,6 +41,7 @@ const createWindow = () => {
 app.on('ready', async () => {
   getFocusEngine();
   registerFocusHandlers();
+  registerCoachHandlers();
   await bootstrapActivityProvider();
   registerActivityHandlers();
   getActivityTracker();

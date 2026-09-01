@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { AssistantPlaceholder } from './AssistantPlaceholder';
 import { CurrentTaskCard } from './CurrentTaskCard';
 import { FocusTimer } from './FocusTimer';
+import { InsightsView } from './InsightsView';
 import { SessionHistory } from './SessionHistory';
-import { Sidebar } from './Sidebar';
+import { Sidebar, type AppView } from './Sidebar';
 import { Statistics } from './Statistics';
 import { TaskPanel } from './TaskPanel';
 import { TrackingControls } from './TrackingControls';
@@ -15,6 +17,7 @@ import { useFocusHistory } from '../hooks/useFocusHistory';
 import { useTasks } from '../hooks/useTasks';
 
 export function DashboardShell(): JSX.Element {
+  const [activeView, setActiveView] = useState<AppView>('dashboard');
   const { user } = useAuth();
   const { selectedTaskId, selectedTask } = useTasks();
   const { reloadHistory } = useFocusHistory();
@@ -34,36 +37,42 @@ export function DashboardShell(): JSX.Element {
 
   return (
     <div className="dashboard-shell">
-      <Sidebar />
+      <Sidebar activeView={activeView} onNavigate={setActiveView} />
       <main className="main-content">
-        <div className="top-row">
-          <CurrentTaskCard />
-          <FocusTimer focusSession={focusSession} />
-        </div>
-        <TrackingControls
-          statusLabel={activityTracking.statusLabel}
-          preferenceHint={activityTracking.preferenceHint}
-          trackingState={activityTracking.state}
-          error={activityTracking.error}
-          isLoading={activityTracking.isLoading}
-          onEnable={() => {
-            void activityTracking.enable();
-          }}
-          onDisable={() => {
-            void activityTracking.disable();
-          }}
-          onPause={() => {
-            void activityTracking.pause();
-          }}
-          onResume={() => {
-            void activityTracking.resume();
-          }}
-        />
-        <div className="dashboard-grid">
-          <TaskPanel selectionLocked={selectionLocked} />
-          <SessionHistory />
-        </div>
-        <Statistics />
+        {activeView === 'insights' ? (
+          <InsightsView />
+        ) : (
+          <>
+            <div className="top-row">
+              <CurrentTaskCard />
+              <FocusTimer focusSession={focusSession} />
+            </div>
+            <TrackingControls
+              statusLabel={activityTracking.statusLabel}
+              preferenceHint={activityTracking.preferenceHint}
+              trackingState={activityTracking.state}
+              error={activityTracking.error}
+              isLoading={activityTracking.isLoading}
+              onEnable={() => {
+                void activityTracking.enable();
+              }}
+              onDisable={() => {
+                void activityTracking.disable();
+              }}
+              onPause={() => {
+                void activityTracking.pause();
+              }}
+              onResume={() => {
+                void activityTracking.resume();
+              }}
+            />
+            <div className="dashboard-grid">
+              <TaskPanel selectionLocked={selectionLocked} />
+              <SessionHistory />
+            </div>
+            <Statistics />
+          </>
+        )}
       </main>
       <AssistantPlaceholder
         currentMessage={assistant.currentMessage}
