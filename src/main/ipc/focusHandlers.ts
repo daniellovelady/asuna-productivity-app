@@ -1,5 +1,7 @@
 import { ipcMain } from 'electron';
+import type { FocusStartIntent } from '../../shared/focus/focusStartIntent';
 import { getFocusEngine } from '../focus/focusEngine';
+import { tryStartFocus } from '../focus/focusStartCommand';
 import { FocusEngineError } from '../../shared/focus/types';
 
 function handleFocusError(error: unknown): never {
@@ -39,9 +41,30 @@ export function registerFocusHandlers(): void {
     }
   });
 
-  ipcMain.handle('focus:start', () => {
+  ipcMain.handle('focus:start', (_event, payload: unknown) => {
     try {
-      return getFocusEngine().start();
+      let intent: FocusStartIntent | undefined;
+      if (
+        typeof payload === 'object'
+        && payload !== null
+        && 'taskId' in payload
+        && 'titleSnapshot' in payload
+        && typeof (payload as { taskId: unknown }).taskId === 'string'
+        && typeof (payload as { titleSnapshot: unknown }).titleSnapshot === 'string'
+      ) {
+        const taskPayload = payload as { taskId: string; titleSnapshot: string };
+        intent = {
+          kind: 'task',
+          taskId: taskPayload.taskId,
+          titleSnapshot: taskPayload.titleSnapshot,
+        };
+      }
+
+      const result = tryStartFocus(intent);
+      if (!result.ok) {
+        throw new Error(result.reason);
+      }
+      return result.state;
     } catch (error) {
       handleFocusError(error);
     }

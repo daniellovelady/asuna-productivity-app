@@ -9,7 +9,9 @@ export function handleFocusSessionCompleted(
   completed: CompletedFocusSession,
   triggerEngine: AssistantTriggerEngine,
 ): void {
+  triggerEngine.resetFocusEncouragement();
+
   if (isFocusSessionCompleted(completed)) {
-    triggerEngine.enqueueCelebration();
+    triggerEngine.enqueueCelebration(completed);
   }
 }

@@ -1,14 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { FOCUS_DURATION_OPTIONS } from '../../shared/focus/validation';
+import type { useBreakSession } from '../hooks/useBreakSession';
 import type { useFocusSession } from '../hooks/useFocusSession';
+import { useAuth } from '../hooks/useAuth';
+import { formatDurationMs } from '../utils/formatDuration';
 
 type FocusSessionControls = ReturnType<typeof useFocusSession>;
+type BreakSessionControls = ReturnType<typeof useBreakSession>;
 
 interface FocusTimerProps {
   focusSession: FocusSessionControls;
+  breakSession: BreakSessionControls;
 }
 
-export function FocusTimer({ focusSession }: FocusTimerProps): JSX.Element {
+export function FocusTimer({ focusSession, breakSession }: FocusTimerProps): JSX.Element {
   const {
     error,
     saveError,
@@ -27,6 +32,8 @@ export function FocusTimer({ focusSession }: FocusTimerProps): JSX.Element {
     stop,
     retrySave,
   } = focusSession;
+
+  const { user, authContextReady } = useAuth();
 
   const [isDurationMenuOpen, setIsDurationMenuOpen] = useState(false);
   const durationMenuRef = useRef<HTMLDivElement>(null);
@@ -52,7 +59,35 @@ export function FocusTimer({ focusSession }: FocusTimerProps): JSX.Element {
     };
   }, [isDurationMenuOpen]);
 
-  const startDisabled = hasUnsavedCompletion || isSavingCompletion;
+  const startDisabled = hasUnsavedCompletion
+    || isSavingCompletion
+    || (user !== null && !authContextReady)
+    || breakSession.isBreakActive;
+
+  if (breakSession.isBreakActive) {
+    return (
+      <section className="card focus-timer" aria-label="Break timer">
+        <h2 className="card-title">Break</h2>
+        <p className="focus-timer-display" aria-label="Break countdown" aria-live="polite">
+          {formatDurationMs(breakSession.remainingMs)} remaining
+        </p>
+        {breakSession.error ? (
+          <p className="focus-timer-error" role="alert">
+            {breakSession.error}
+          </p>
+        ) : null}
+        <div className="focus-timer-controls">
+          <button
+            type="button"
+            className="focus-timer-button focus-timer-button-secondary"
+            onClick={() => void breakSession.endEarly()}
+          >
+            End Break
+          </button>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="card focus-timer" aria-label="Focus timer">

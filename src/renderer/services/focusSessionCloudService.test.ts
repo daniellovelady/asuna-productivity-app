@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { PostgrestError, SupabaseClient, User } from '@supabase/supabase-js';
+import { focusIntentToPersistenceContext } from '../../shared/focus/focusStartIntent';
 import type { CompletedFocusSession } from '../../shared/focus/types';
 import {
   createFocusSessionCloudService,
@@ -25,9 +26,12 @@ function createMockClient(): SupabaseClient {
   const focusSessionsChain = {
     select: vi.fn().mockReturnThis(),
     insert: vi.fn().mockReturnThis(),
+    delete: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
     in: vi.fn().mockReturnThis(),
     not: vi.fn().mockReturnThis(),
+    gte: vi.fn().mockReturnThis(),
+    lte: vi.fn().mockReturnThis(),
     order: vi.fn().mockReturnThis(),
     single: vi.fn(),
   };
@@ -53,11 +57,15 @@ function createMockClient(): SupabaseClient {
 
 const completed: CompletedFocusSession = {
   id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  ownerUserId: 'user-id',
   targetDurationMs: 25 * 60_000,
   elapsedFocusMs: 25 * 60_000,
   startedAt: Date.parse('2026-08-27T09:00:00.000Z'),
   endedAt: Date.parse('2026-08-27T09:25:00.000Z'),
   accumulatedPausedMs: 0,
+  interruptionCount: 2,
+  breakTargetMinutes: 5,
+  breakTargetOwnerMatched: true,
 };
 
 const sessionRow = {
@@ -69,7 +77,8 @@ const sessionRow = {
   started_at: '2026-08-27T09:00:00.000Z',
   ended_at: '2026-08-27T09:25:00.000Z',
   paused_seconds: 0,
-  interruption_count: 0,
+  interruption_count: 2,
+  break_target_minutes: 5,
   status: 'completed' as const,
 };
 
@@ -107,7 +116,14 @@ describe('createFocusSessionCloudService', () => {
     client._chain.single.mockResolvedValue({ data: sessionRow, error: null });
 
     const service = createFocusSessionCloudService(client);
-    const saved = await service.saveEndedSession(completed, 'task-id', 'Demo task');
+    const saved = await service.saveEndedSession(
+      completed,
+      focusIntentToPersistenceContext({
+        kind: 'task',
+        taskId: 'task-id',
+        titleSnapshot: 'Demo task',
+      }),
+    );
 
     expect(client._chain.insert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -136,7 +152,10 @@ describe('createFocusSessionCloudService', () => {
     });
 
     const service = createFocusSessionCloudService(client);
-    const saved = await service.saveEndedSession(completed, null, null);
+    const saved = await service.saveEndedSession(
+      completed,
+      focusIntentToPersistenceContext({ kind: 'none' }),
+    );
 
     expect(client.from).not.toHaveBeenCalledWith('tasks');
     expect(client._chain.insert).toHaveBeenCalledWith(
@@ -165,7 +184,14 @@ describe('createFocusSessionCloudService', () => {
     });
 
     const service = createFocusSessionCloudService(client);
-    const saved = await service.saveEndedSession(completed, 'task-id', 'Demo task');
+    const saved = await service.saveEndedSession(
+      completed,
+      focusIntentToPersistenceContext({
+        kind: 'task',
+        taskId: 'task-id',
+        titleSnapshot: 'Demo task',
+      }),
+    );
 
     expect(client._chain.insert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -174,6 +200,25 @@ describe('createFocusSessionCloudService', () => {
       }),
     );
     expect(saved.taskTitle).toBe('Demo task');
+  });
+
+  it('refuses to save a session owned by a different account', async () => {
+    const client = createMockClient();
+    vi.mocked(client.auth.getUser).mockResolvedValue({
+      data: { user: { id: 'user-b' } as User },
+      error: null,
+    });
+
+    const service = createFocusSessionCloudService(client);
+    const mismatched = { ...completed, ownerUserId: 'user-a' };
+
+    await expect(service.saveEndedSession(
+      mismatched,
+      focusIntentToPersistenceContext({ kind: 'none' }),
+    )).rejects.toThrow(
+      'This session belongs to a different account. Sign in as the session owner to save it.',
+    );
+    expect(client._chain.insert).not.toHaveBeenCalled();
   });
 
   it('treats duplicate key insert as success', async () => {
@@ -191,7 +236,14 @@ describe('createFocusSessionCloudService', () => {
       .mockResolvedValueOnce({ data: sessionRow, error: null });
 
     const service = createFocusSessionCloudService(client);
-    const saved = await service.saveEndedSession(completed, 'task-id', 'Demo task');
+    const saved = await service.saveEndedSession(
+      completed,
+      focusIntentToPersistenceContext({
+        kind: 'task',
+        taskId: 'task-id',
+        titleSnapshot: 'Demo task',
+      }),
+    );
 
     expect(saved.id).toBe(completed.id);
     expect(client._chain.eq).toHaveBeenCalledWith('id', completed.id);
@@ -221,5 +273,46 @@ describe('createFocusSessionCloudService', () => {
     expect(sessions[1].status).toBe('abandoned');
     expect(sessions[1].taskTitle).toBe('Old task');
     expect(client._chain.in).toHaveBeenCalledWith('status', ['completed', 'abandoned']);
+  });
+
+  it('deletes only the targeted ended session row', async () => {
+    const client = createMockClient();
+    vi.mocked(client.auth.getUser).mockResolvedValue({
+      data: { user: { id: 'user-id' } as User },
+      error: null,
+    });
+    client._chain.not.mockResolvedValueOnce({ count: 1, error: null });
+
+    const service = createFocusSessionCloudService(client);
+    await service.deleteEndedSession(sessionRow.id);
+
+    expect(client._chain.delete).toHaveBeenCalled();
+    expect(client.from).not.toHaveBeenCalledWith('tasks');
+    expect(client.from).not.toHaveBeenCalledWith('calendar_event_task_links');
+  });
+
+  it('uses the same frozen window for count and bulk delete', async () => {
+    const client = createMockClient();
+    vi.mocked(client.auth.getUser).mockResolvedValue({
+      data: { user: { id: 'user-id' } as User },
+      error: null,
+    });
+    const window = {
+      windowStartIso: '2026-09-30T12:00:00.000Z',
+      windowEndIso: '2026-10-07T12:00:00.000Z',
+    };
+
+    client._chain.lte
+      .mockResolvedValueOnce({ count: 2, error: null })
+      .mockResolvedValueOnce({ count: 2, error: null });
+
+    const service = createFocusSessionCloudService(client);
+    const count = await service.countEndedSessionsInWindow(window);
+    const deleted = await service.deleteEndedSessionsInWindow(window);
+
+    expect(count).toBe(2);
+    expect(deleted).toBe(2);
+    expect(client._chain.gte).toHaveBeenCalledWith('ended_at', window.windowStartIso);
+    expect(client._chain.lte).toHaveBeenCalledWith('ended_at', window.windowEndIso);
   });
 });

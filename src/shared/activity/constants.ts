@@ -13,6 +13,8 @@ export const BREAK_DISTRACTING_MS = 60 * 60 * 1000;
 export const BREAK_MESSAGE_COOLDOWN_MS = 30 * 60 * 1000;
 
 export const ASSISTANT_AUTO_DISMISS_MS = 12_000;
+/** Short confirmation TTL for focus_started lifecycle messages (6–8s target). */
+export const FOCUS_STARTED_CONFIRMATION_TTL_MS = 7_000;
 export const ASSISTANT_QUEUE_MAX = 20;
 
 export const FOCUS_BUFFER_MAX_SAMPLES = 1920;

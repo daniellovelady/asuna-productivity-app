@@ -3,7 +3,10 @@ export interface AnalyticsFocusByDay {
   focusMinutes: number;
 }
 
+export type AnalyticsFocusContextType = 'none' | 'task' | 'calendar_event';
+
 export interface AnalyticsFocusByTask {
+  contextType: AnalyticsFocusContextType;
   taskLabel: string;
   focusMinutes: number;
 }

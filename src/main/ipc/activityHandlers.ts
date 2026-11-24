@@ -99,26 +99,6 @@ export function registerActivityHandlers(): void {
     }
   });
 
-  ipcMain.handle('activity:setAuthContext', (_event, payload: unknown) => {
-    try {
-      if (
-        typeof payload !== 'object'
-        || payload === null
-        || !('userId' in payload)
-        || (payload as { userId: unknown }).userId !== null
-        && typeof (payload as { userId: unknown }).userId !== 'string'
-      ) {
-        throw new Error('Invalid auth context payload.');
-      }
-
-      return getActivityTracker().setAuthContext(
-        (payload as { userId: string | null }).userId,
-      );
-    } catch (error) {
-      handleActivityError(error);
-    }
-  });
-
   ipcMain.handle('activity:updateTriggerContext', (_event, payload: unknown) => {
     try {
       if (

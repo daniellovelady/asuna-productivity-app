@@ -96,3 +96,34 @@ backend/.env
 backend/.venv/
 backend/**/__pycache__/
 backend/.pytest_cache/
+*.egg-info/
+
+# Additional environment files
+.env.*
+!.env.example
+
+# OAuth credentials and private keys
+client_secret*.json
+credentials.json
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Electron memory diagnostics
+*.heapsnapshot
+*.heapprofile
+*.cpuprofile
+
+# Supabase local artifacts
+supabase/.temp/
+supabase/.branches/
+
+# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Additional build output
+dist/

@@ -38,11 +38,20 @@ const config: ForgeConfig = {
           config: 'vite.preload.config.ts',
           target: 'preload',
         },
+        {
+          entry: 'src/notification-preload.ts',
+          config: 'vite.preload.config.ts',
+          target: 'preload',
+        },
       ],
       renderer: [
         {
           name: 'main_window',
           config: 'vite.renderer.config.ts',
+        },
+        {
+          name: 'notification_window',
+          config: 'vite.notification.config.ts',
         },
       ],
     }),

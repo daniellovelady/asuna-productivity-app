@@ -1,0 +1,364 @@
+:root {
+  --notification-font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --notification-card-width: 400px;
+  --notification-shadow-padding: 8px;
+  --notification-surface: #17181f;
+  --notification-surface-elevated: #1f2129;
+  --notification-border: rgba(255, 255, 255, 0.1);
+  --notification-border-accent: rgba(216, 132, 168, 0.35);
+  --notification-text-primary: #f4f5f8;
+  --notification-text-secondary: #a8b0c2;
+  --notification-text-muted: #7b8498;
+  --notification-accent: #d884a8;
+  --notification-accent-soft: rgba(216, 132, 168, 0.22);
+  --notification-accent-strong: #e8a4c4;
+  --notification-celebration-glow: rgba(232, 164, 196, 0.45);
+  --notification-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.48),
+    0 4px 12px rgba(0, 0, 0, 0.32),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#notification-root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  color: var(--notification-text-primary);
+  font-family: var(--notification-font);
+}
+
+.notification-shell {
+  width: 100%;
+  height: 100%;
+  padding: var(--notification-shadow-padding);
+}
+
+.notification-card {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  width: 100%;
+  height: 100%;
+  min-height: 156px;
+  padding: 16px;
+  border-radius: 14px;
+  background: linear-gradient(165deg, var(--notification-surface-elevated) 0%, var(--notification-surface) 100%);
+  color: var(--notification-text-primary);
+  box-shadow: var(--notification-shadow);
+  border: 1px solid var(--notification-border);
+}
+
+.notification-card--encouraging {
+  border-color: var(--notification-border);
+  box-shadow:
+    var(--notification-shadow),
+    inset 3px 0 0 var(--notification-accent-soft);
+}
+
+.notification-card--celebrating {
+  border-color: var(--notification-border-accent);
+  box-shadow:
+    var(--notification-shadow),
+    0 0 24px rgba(216, 132, 168, 0.14),
+    inset 3px 0 0 var(--notification-accent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .notification-card {
+    animation: notification-enter 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .notification-avatar-state--encouraging .notification-avatar-face {
+    animation: notification-avatar-pulse 3.2s ease-in-out infinite;
+  }
+
+  .notification-card--celebrating .notification-avatar {
+    animation: notification-celebration-pop 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .notification-card--celebrating .notification-avatar-face {
+    animation: notification-celebration-glow 2.4s ease-in-out infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notification-card {
+    animation: notification-enter-reduced 120ms ease-out;
+  }
+}
+
+@keyframes notification-enter {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes notification-enter-reduced {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes notification-avatar-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(216, 132, 168, 0.18);
+  }
+
+  50% {
+    box-shadow: 0 0 0 6px rgba(216, 132, 168, 0);
+  }
+}
+
+@keyframes notification-celebration-pop {
+  0% {
+    transform: scale(0.92);
+  }
+
+  60% {
+    transform: scale(1.04);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes notification-celebration-glow {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+
+  50% {
+    filter: brightness(1.08);
+  }
+}
+
+.notification-avatar-area {
+  flex-shrink: 0;
+}
+
+.notification-avatar {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #3a3d4a 0%, #252730 55%, #1a1c24 100%);
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.notification-avatar--calm {
+  background: radial-gradient(circle at 35% 30%, #4a7ea8 0%, #2f5f86 55%, #1e3f5c 100%);
+}
+
+.notification-avatar--energetic {
+  background: radial-gradient(circle at 35% 30%, #4fa86e 0%, #2f7a4d 55%, #1f5436 100%);
+}
+
+.notification-avatar--focused {
+  background: radial-gradient(circle at 35% 30%, #8b6fd6 0%, #6a4fb8 55%, #4a348a 100%);
+}
+
+.notification-avatar-face {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+.notification-avatar-face::before,
+.notification-avatar-face::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  background: var(--notification-text-primary);
+}
+
+.notification-avatar-face::before {
+  top: 26px;
+  left: 18px;
+  width: 8px;
+  height: 8px;
+  box-shadow: 28px 0 0 var(--notification-text-primary);
+}
+
+.notification-avatar-state--encouraging .notification-avatar-face::after {
+  bottom: 20px;
+  left: 24px;
+  width: 24px;
+  height: 12px;
+  border-radius: 0 0 12px 12px;
+  background: transparent;
+  border-bottom: 3px solid rgba(255, 255, 255, 0.88);
+  border-left: 3px solid transparent;
+  border-right: 3px solid transparent;
+}
+
+.notification-avatar-state--encouraging .notification-avatar {
+  box-shadow:
+    0 0 0 2px rgba(216, 132, 168, 0.28),
+    0 8px 20px rgba(0, 0, 0, 0.28);
+}
+
+.notification-avatar-state--celebrating .notification-avatar-face::after {
+  bottom: 18px;
+  left: 20px;
+  width: 32px;
+  height: 16px;
+  border-radius: 0 0 16px 16px;
+  background: transparent;
+  border-bottom: 3px solid var(--notification-accent-strong);
+  border-left: 3px solid transparent;
+  border-right: 3px solid transparent;
+}
+
+.notification-avatar-state--celebrating .notification-avatar {
+  box-shadow:
+    0 0 0 2px var(--notification-celebration-glow),
+    0 0 18px rgba(232, 164, 196, 0.35),
+    0 8px 20px rgba(0, 0, 0, 0.28);
+}
+
+.notification-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.notification-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.notification-app-name {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--notification-text-muted);
+}
+
+.notification-category {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--notification-text-primary);
+}
+
+.notification-card--celebrating .notification-category {
+  color: var(--notification-accent-strong);
+}
+
+.notification-headline {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--notification-text-primary);
+}
+
+.notification-message {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--notification-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.notification-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.notification-action-button {
+  border-radius: 8px;
+  padding: 7px 14px;
+  min-width: 72px;
+  min-height: 32px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    transform 80ms ease;
+}
+
+.notification-action-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.notification-action-button-primary {
+  border: 1px solid rgba(216, 132, 168, 0.5);
+  background: rgba(216, 132, 168, 0.24);
+  color: #fff;
+}
+
+.notification-action-button-primary:hover:not(:disabled) {
+  background: rgba(216, 132, 168, 0.34);
+  border-color: rgba(216, 132, 168, 0.62);
+}
+
+.notification-action-button-secondary {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--notification-text-primary);
+}
+
+.notification-action-button-secondary:hover:not(:disabled) {
+  background: rgba(216, 132, 168, 0.18);
+  border-color: rgba(216, 132, 168, 0.42);
+  color: #fff;
+}
+
+.notification-action-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.notification-action-button:focus-visible {
+  outline: 2px solid var(--notification-accent-strong);
+  outline-offset: 2px;
+}
+
+.notification-action-error {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: #f8b4c8;
+}
+
+.notification-empty {
+  width: 1px;
+  height: 1px;
+}

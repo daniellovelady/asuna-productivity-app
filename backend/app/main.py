@@ -3,14 +3,18 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.errors import AppError
+from app.routes.assistant import router as assistant_router
 from app.routes.coach import router as coach_router
 from app.routes.health import router as health_router
+from app.routes.insights import router as insights_router
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title="A.S.U.N.A. Coach API", version="0.1.0")
     app.include_router(health_router)
     app.include_router(coach_router)
+    app.include_router(insights_router)
+    app.include_router(assistant_router)
 
     @app.exception_handler(AppError)
     async def app_error_handler(_request: Request, exc: AppError) -> JSONResponse:

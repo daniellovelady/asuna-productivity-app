@@ -30,6 +30,7 @@ function createMockClient(): SupabaseClient {
 
   return {
     from: vi.fn(() => chain),
+    rpc: vi.fn(),
     auth: {
       getUser: vi.fn(),
     },
@@ -229,9 +230,9 @@ describe('createTaskService', () => {
 
   it('throws conflict on stale delete', async () => {
     const client = createMockClient();
-    client._chain.single.mockResolvedValue({
+    vi.mocked(client.rpc).mockResolvedValue({
       data: null,
-      error: createPostgrestError('PGRST116', 'not found'),
+      error: createPostgrestError('42883', 'Task update conflict or not found'),
     });
 
     const service = createTaskService(client);
@@ -241,13 +242,10 @@ describe('createTaskService', () => {
     ).rejects.toBeInstanceOf(TaskConflictError);
   });
 
-  it('completes a task with status and completed_at', async () => {
+  it('completes a task via RPC', async () => {
     const completedAt = '2026-08-29T12:00:00.000Z';
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date(completedAt));
-
     const client = createMockClient();
-    client._chain.single.mockResolvedValue({
+    vi.mocked(client.rpc).mockResolvedValue({
       data: {
         ...taskRow,
         status: 'completed',
@@ -259,26 +257,25 @@ describe('createTaskService', () => {
     const service = createTaskService(client);
     const completed = await service.completeTask('task-id', taskRow.updated_at);
 
-    expect(client._chain.update).toHaveBeenCalledWith({
-      status: 'completed',
-      completed_at: completedAt,
+    expect(client.rpc).toHaveBeenCalledWith('complete_task_and_cancel_future_blocks', {
+      p_task_id: 'task-id',
+      p_expected_updated_at: taskRow.updated_at,
     });
     expect(completed.status).toBe('completed');
     expect(completed.completedAt).toBe(completedAt);
-
-    vi.useRealTimers();
   });
 
-  it('deletes with expectedUpdatedAt filter', async () => {
+  it('deletes via schedule cleanup RPC', async () => {
     const client = createMockClient();
-    client._chain.single.mockResolvedValue({ data: taskRow, error: null });
+    vi.mocked(client.rpc).mockResolvedValue({ data: taskRow, error: null });
 
     const service = createTaskService(client);
     const deleted = await service.deleteTask('task-id', taskRow.updated_at);
 
-    expect(client._chain.delete).toHaveBeenCalled();
-    expect(client._chain.eq).toHaveBeenCalledWith('id', 'task-id');
-    expect(client._chain.eq).toHaveBeenCalledWith('updated_at', taskRow.updated_at);
+    expect(client.rpc).toHaveBeenCalledWith('delete_task_with_schedule_block_cleanup', {
+      p_task_id: 'task-id',
+      p_expected_updated_at: taskRow.updated_at,
+    });
     expect(deleted.id).toBe('task-id');
   });
 

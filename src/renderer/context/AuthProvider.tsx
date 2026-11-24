@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -13,12 +14,17 @@ import {
   type AuthActionResult,
   type AuthCredentials,
 } from '../services/authService';
-import { activityService } from '../services/activityService';
+import { authContextBridgeService } from '../services/authContextBridgeService';
+import { resolveAuthContextTimeZone } from '../services/authContextTimeZone';
+import { finalizeFocusSessionsBeforeAuthChange } from '../services/focusSessionLifecycleService';
+import { rendererBootLog } from '../diagnostics/rendererBoot';
+import { useRendererBootMarker } from '../diagnostics/useRendererBootMarker';
 
 type AuthContextValue = {
   session: Session | null;
   user: User | null;
   isLoading: boolean;
+  authContextReady: boolean;
   error: string | null;
   signIn: (credentials: AuthCredentials) => Promise<AuthActionResult>;
   signUp: (credentials: AuthCredentials) => Promise<AuthActionResult>;
@@ -29,14 +35,65 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }): JSX.Element {
+  useRendererBootMarker('AuthProvider-mounted');
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [authContextReady, setAuthContextReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rendererGeneration, setRendererGeneration] = useState<number | null>(null);
+  const authContextSequenceRef = useRef(0);
+  const rendererGenerationRef = useRef<number | null>(null);
+  const previousUserIdRef = useRef<string | null>(null);
+
+  const syncAuthContext = useCallback(async (userId: string | null): Promise<boolean> => {
+    const generation = rendererGenerationRef.current;
+
+    if (generation === null) {
+      return false;
+    }
+
+    authContextSequenceRef.current += 1;
+    const timeZone = await resolveAuthContextTimeZone(userId);
+    const { applied } = await authContextBridgeService.sync(
+      userId,
+      authContextSequenceRef.current,
+      generation,
+      timeZone,
+    );
+
+    if (applied) {
+      setAuthContextReady(true);
+    }
+
+    return applied;
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const registerRenderer = async () => {
+      const { generation } = await authContextBridgeService.registerRenderer();
+
+      if (!isMounted) {
+        return;
+      }
+
+      rendererGenerationRef.current = generation;
+      setRendererGeneration(generation);
+    };
+
+    void registerRenderer();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
 
     const initializeSession = async () => {
+      rendererBootLog('auth-initialization-start');
       try {
         const initialSession = await authService.getSession();
 
@@ -53,6 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
       } finally {
         if (isMounted) {
           setIsLoading(false);
+          rendererBootLog('auth-initialization-complete');
         }
       }
     };
@@ -62,8 +120,9 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     const { unsubscribe } = authService.onAuthStateChange((nextSession) => {
       if (isMounted) {
         if (nextSession === null) {
-          void activityService.disable().catch(() => undefined);
-          void activityService.setAuthContext(null).catch(() => undefined);
+          void finalizeFocusSessionsBeforeAuthChange()
+            .then(() => syncAuthContext(null))
+            .catch(() => undefined);
         }
 
         setSession(nextSession);
@@ -75,7 +134,38 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
       isMounted = false;
       unsubscribe();
     };
-  }, []);
+  }, [syncAuthContext]);
+
+  useEffect(() => {
+    if (rendererGeneration === null || isLoading) {
+      return;
+    }
+
+    const nextUserId = session?.user?.id ?? null;
+    const previousUserId = previousUserIdRef.current;
+
+    if (nextUserId === null) {
+      if (previousUserId !== null) {
+        previousUserIdRef.current = null;
+      }
+
+      setAuthContextReady(false);
+      void syncAuthContext(null).catch(() => undefined);
+      return;
+    }
+
+    const syncForUser = async () => {
+      if (previousUserId !== null && previousUserId !== nextUserId) {
+        await finalizeFocusSessionsBeforeAuthChange();
+      }
+
+      setAuthContextReady(false);
+      await syncAuthContext(nextUserId);
+    };
+
+    previousUserIdRef.current = nextUserId;
+    void syncForUser().catch(() => undefined);
+  }, [session?.user?.id, isLoading, syncAuthContext, rendererGeneration]);
 
   const signIn = useCallback(async (credentials: AuthCredentials) => {
     setError(null);
@@ -101,8 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
 
   const signOut = useCallback(async () => {
     setError(null);
-    await activityService.disable().catch(() => undefined);
-    await activityService.setAuthContext(null).catch(() => undefined);
+    await finalizeFocusSessionsBeforeAuthChange();
     const result = await authService.signOut();
 
     if (result.error) {
@@ -121,13 +210,14 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
       session,
       user: session?.user ?? null,
       isLoading,
+      authContextReady,
       error,
       signIn,
       signUp,
       signOut,
       clearError,
     }),
-    [session, isLoading, error, signIn, signUp, signOut, clearError],
+    [session, isLoading, authContextReady, error, signIn, signUp, signOut, clearError],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -42,6 +42,8 @@ export interface CoachAnalyzeResponse {
 
 export interface CoachApi {
   analyze: (request: CoachAnalyzeRequest) => Promise<CoachAnalyzeResponse>;
+  weeklyReport: (request: { accessToken: string }) => Promise<import('./weeklyInsight').WeeklyInsightReportResponse>;
+  varyMessage: (request: import('./weeklyInsight').VaryMessageRequest) => Promise<import('./weeklyInsight').VaryMessageResponse>;
 }
 
 declare global {

@@ -28,7 +28,7 @@ const validSnapshot = {
   averageSessionMinutes: 27.1538461538,
   breakCompliancePercent: 60,
   focusByDay: [{ date: '2026-08-25', focusMinutes: 40 }],
-  focusByTask: [{ taskLabel: 'Capstone', focusMinutes: 160 }],
+  focusByTask: [{ contextType: 'task', taskLabel: 'Capstone', focusMinutes: 160 }],
   topDistractingApps: [{ applicationName: 'youtube', estimatedMinutes: 2.5 }],
 };
 

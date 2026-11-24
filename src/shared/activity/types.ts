@@ -38,12 +38,29 @@ export type AssistantMessageType =
   | 'break'
   | 'celebration';
 
+export interface AssistantMessageFacts {
+  app?: string;
+  minutes?: number;
+  taskCount?: number;
+  breakMinutes?: number;
+}
+
+export interface AssistantMessageAction {
+  type: string;
+  label: string;
+  variant: 'primary' | 'secondary';
+}
+
 export interface AssistantMessage {
   id: string;
   type: AssistantMessageType;
   text: string;
   createdAt: number;
   priority?: number;
+  triggerKey?: string;
+  template?: string;
+  facts?: AssistantMessageFacts;
+  actions?: AssistantMessageAction[];
 }
 
 export interface AssistantQueueState {

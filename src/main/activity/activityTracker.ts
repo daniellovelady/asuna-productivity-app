@@ -1,4 +1,5 @@
 import { OBSERVATION_INTERVAL_MS } from '../../shared/activity/constants';
+import type { UserPreferences } from '../../shared/preferences/types';
 import type {
   ActivitySamplePayload,
   ActivityTrackingState,
@@ -8,8 +9,9 @@ import type {
 } from '../../shared/activity/types';
 import { ActivityTrackerError } from '../../shared/activity/types';
 import { getFocusEngine } from '../focus/focusEngine';
+import { getNotificationService } from '../notifications/notificationService';
+import { createNotificationEnqueueTarget } from '../notifications/notificationEnqueueTarget';
 import { ActiveActivityAdapter } from './activeActivityAdapter';
-import { AssistantMessageQueue } from './assistantMessageQueue';
 import { AssistantTriggerEngine } from './assistantTriggerEngine';
 import { handleFocusSessionCompleted } from './focusCompletionBridge';
 import { FocusSessionSampleBuffer } from './focusSessionSampleBuffer';
@@ -56,8 +58,6 @@ export class ActivityTracker {
 
   private readonly focusBuffer = new FocusSessionSampleBuffer();
 
-  private readonly messageQueue = new AssistantMessageQueue(this.now);
-
   private readonly triggerEngine: AssistantTriggerEngine;
 
   private callbacks: ActivityTrackerCallbacks | null = null;
@@ -69,7 +69,21 @@ export class ActivityTracker {
   ) {
     this.adapter = new ActiveActivityAdapter(provider);
     this.idleDetector = idleDetector;
-    this.triggerEngine = new AssistantTriggerEngine(this.messageQueue, this.now);
+    this.triggerEngine = new AssistantTriggerEngine(createNotificationEnqueueTarget(), this.now);
+    this.triggerEngine.setInterruptionCallbacks({
+      onDistractionThresholdCrossed: () => {
+        getFocusEngine().setDistractionSignal(true);
+      },
+      onDistractionEpisodeEnded: () => {
+        getFocusEngine().setDistractionSignal(false);
+      },
+    });
+
+    getNotificationService().setCallbacks({
+      onInAppQueueChanged: (state) => {
+        this.callbacks?.onAssistantQueueChanged(state);
+      },
+    });
   }
 
   setCallbacks(callbacks: ActivityTrackerCallbacks): void {
@@ -82,11 +96,12 @@ export class ActivityTracker {
     systemSuspendHandler.register({
       onSuspend: () => {
         this.systemSuspended = true;
-        this.triggerEngine.resetStreaks();
+        this.triggerEngine.resetStreaks({ endDistractionEpisode: false });
+        getFocusEngine().clearTrackingDerivedSignals();
       },
       onResume: () => {
         this.systemSuspended = false;
-        this.triggerEngine.resetStreaks();
+        this.triggerEngine.resetStreaks({ endDistractionEpisode: false });
         if (this.status === 'running' && this.authenticatedUserId !== null) {
           this.startObservationTimer();
         }
@@ -95,14 +110,19 @@ export class ActivityTracker {
   }
 
   watchFocusCompletions(): void {
-    getFocusEngine().setOnSessionCompleted((completed) => {
+    const focusEngine = getFocusEngine();
+
+    focusEngine.setOnRunningTick((sessionId, elapsedFocusMs) => {
+      this.triggerEngine.evaluateFocusEncouragement(sessionId, elapsedFocusMs);
+    });
+
+    focusEngine.setOnSessionCompleted((completed) => {
       if (completed.id === this.lastCompletedSessionId) {
         return;
       }
 
       this.lastCompletedSessionId = completed.id;
       handleFocusSessionCompleted(completed, this.triggerEngine);
-      this.emitAssistantQueue();
     });
   }
 
@@ -111,6 +131,10 @@ export class ActivityTracker {
   }
 
   setAuthContext(userId: string | null): ActivityTrackingState {
+    return this.applyAuthContext(userId);
+  }
+
+  applyAuthContext(userId: string | null): ActivityTrackingState {
     this.authenticatedUserId = userId;
 
     if (userId === null && this.status !== 'disabled') {
@@ -132,7 +156,8 @@ export class ActivityTracker {
     this.stopObservationTimer();
     this.status = 'paused';
     this.clearTransientActivityState();
-    this.triggerEngine.resetStreaks();
+    this.triggerEngine.resetStreaks({ endDistractionEpisode: false });
+    getFocusEngine().clearTrackingDerivedSignals();
     this.emitState();
     return this.buildState();
   }
@@ -154,9 +179,10 @@ export class ActivityTracker {
     this.stopObservationTimer();
     this.status = 'disabled';
     this.clearTransientActivityState();
-    this.triggerEngine.resetStreaks();
+    this.triggerEngine.resetStreaks({ endDistractionEpisode: false });
+    getFocusEngine().clearTrackingDerivedSignals();
     this.coalescer.resetGeneral();
-    this.messageQueue.clear();
+    getNotificationService().clear();
     this.emitState();
     return this.buildState();
   }
@@ -179,20 +205,25 @@ export class ActivityTracker {
   }
 
   dismissAssistantMessage(messageId: string): AssistantQueueState {
-    const state = this.messageQueue.dismiss(messageId);
-    this.emitAssistantQueue();
+    const state = getNotificationService().dismiss(messageId);
     return state;
   }
 
+  applyPreferences(preferences: UserPreferences): void {
+    this.triggerEngine.applyPreferences(preferences);
+    getNotificationService().applyPreferences();
+  }
+
   getAssistantQueueState(): AssistantQueueState {
-    return this.messageQueue.getState();
+    return getNotificationService().getInAppQueueState();
   }
 
   shutdown(): void {
     this.stopObservationTimer();
     this.status = 'disabled';
     this.clearTransientActivityState();
-    this.triggerEngine.resetStreaks();
+    this.triggerEngine.resetStreaks({ endDistractionEpisode: false });
+    getFocusEngine().clearTrackingDerivedSignals();
   }
 
   private assertAuthenticated(): void {
@@ -248,6 +279,14 @@ export class ActivityTracker {
       focusSessionElapsedMs: focusState.activeSession?.elapsedFocusMs ?? 0,
     });
 
+    const focusEngine = getFocusEngine();
+
+    if (this.isIdle) {
+      focusEngine.setDistractionSignal(false);
+    }
+
+    focusEngine.setIdleSignal(this.isIdle, true);
+
     const persistCandidate = this.coalescer.consider(
       {
         identity: sample.identity,
@@ -273,7 +312,6 @@ export class ActivityTracker {
     }
 
     this.emitState();
-    this.emitAssistantQueue();
   }
 
   private clearTransientActivityState(): void {
@@ -298,7 +336,7 @@ export class ActivityTracker {
   }
 
   private emitAssistantQueue(): void {
-    this.callbacks?.onAssistantQueueChanged(this.messageQueue.getState());
+    this.callbacks?.onAssistantQueueChanged(getNotificationService().getInAppQueueState());
   }
 }
 

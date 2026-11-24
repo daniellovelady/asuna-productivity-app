@@ -49,3 +49,18 @@ async def get_authenticated_context(
     ) as ctx:
         ctx.question = body.question
         yield ctx
+
+
+async def get_bearer_authenticated_context(
+    authorization: Annotated[str | None, Header()] = None,
+) -> AsyncIterator[AuthenticatedRequestContext]:
+    access_token = extract_bearer_token(authorization)
+    settings = load_required_settings()
+    request_id = str(uuid.uuid4())
+
+    async with create_request_context(
+        access_token,
+        request_id=request_id,
+        settings=settings,
+    ) as ctx:
+        yield ctx

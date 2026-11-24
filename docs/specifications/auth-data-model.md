@@ -175,6 +175,7 @@ Suggested fields:
 - `ended_at`
 - `paused_seconds`
 - `interruption_count`
+- `break_target_minutes`
 - `status`
 
 The existing local Focus Engine remains responsible for active timer behavior.

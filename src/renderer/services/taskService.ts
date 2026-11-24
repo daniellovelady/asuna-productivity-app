@@ -164,39 +164,40 @@ export function createTaskService(client: SupabaseClient) {
     },
 
     completeTask: async (id: string, expectedUpdatedAt: string): Promise<Task> => {
-      const { data, error } = await client
-        .from('tasks')
-        .update({
-          status: 'completed',
-          completed_at: new Date().toISOString(),
-        })
-        .eq('id', id)
-        .eq('updated_at', expectedUpdatedAt)
-        .select()
-        .single();
+      const { data, error } = await client.rpc('complete_task_and_cancel_future_blocks', {
+        p_task_id: id,
+        p_expected_updated_at: expectedUpdatedAt,
+      });
 
       if (error) {
-        if (isConflictError(error)) {
+        if (
+          error.message?.includes('conflict')
+          || error.message?.includes('not found')
+        ) {
           throw new TaskConflictError();
         }
 
         throw new TaskServiceError(mapTaskError(error));
       }
 
+      if (!data) {
+        throw new TaskConflictError();
+      }
+
       return mapTaskRow(data as TaskRow);
     },
 
     deleteTask: async (id: string, expectedUpdatedAt: string): Promise<Task> => {
-      const { data, error } = await client
-        .from('tasks')
-        .delete()
-        .eq('id', id)
-        .eq('updated_at', expectedUpdatedAt)
-        .select()
-        .single();
+      const { data, error } = await client.rpc('delete_task_with_schedule_block_cleanup', {
+        p_task_id: id,
+        p_expected_updated_at: expectedUpdatedAt,
+      });
 
       if (error) {
-        if (isConflictError(error)) {
+        if (
+          error.message?.includes('conflict')
+          || error.message?.includes('not found')
+        ) {
           throw new TaskConflictError();
         }
 

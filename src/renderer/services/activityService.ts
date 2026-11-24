@@ -14,7 +14,6 @@ export const activityService = {
   disable: () => getActivityApi().disable(),
   pause: () => getActivityApi().pause(),
   resume: () => getActivityApi().resume(),
-  setAuthContext: (userId: string | null) => getActivityApi().setAuthContext(userId),
   updateTriggerContext: (activeTaskCount: number) =>
     getActivityApi().updateTriggerContext(activeTaskCount),
   getBufferedSessionSamples: (sessionId: string) =>

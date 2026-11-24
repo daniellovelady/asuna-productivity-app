@@ -4,6 +4,7 @@ import type {
   AnalyticsDistractingApp,
   AnalyticsFocusByDay,
   AnalyticsFocusByTask,
+  AnalyticsFocusContextType,
   AnalyticsSnapshot,
 } from '../types/analytics';
 
@@ -42,6 +43,20 @@ function readString(value: unknown, field: string): string {
   return value;
 }
 
+const FOCUS_CONTEXT_TYPES: ReadonlySet<AnalyticsFocusContextType> = new Set([
+  'none',
+  'task',
+  'calendar_event',
+]);
+
+function readFocusContextType(value: unknown, field: string): AnalyticsFocusContextType {
+  if (typeof value !== 'string' || !FOCUS_CONTEXT_TYPES.has(value as AnalyticsFocusContextType)) {
+    throw new AnalyticsServiceError(`Analytics response is missing a valid ${field}.`);
+  }
+
+  return value as AnalyticsFocusContextType;
+}
+
 function mapFocusByDay(value: unknown): AnalyticsFocusByDay[] {
   if (!Array.isArray(value)) {
     throw new AnalyticsServiceError('Analytics response is missing focusByDay.');
@@ -70,6 +85,10 @@ function mapFocusByTask(value: unknown): AnalyticsFocusByTask[] {
     }
 
     return {
+      contextType: readFocusContextType(
+        entry.contextType,
+        `focusByTask[${index}].contextType`,
+      ),
       taskLabel: readString(entry.taskLabel, `focusByTask[${index}].taskLabel`),
       focusMinutes: readNumber(entry.focusMinutes, `focusByTask[${index}].focusMinutes`),
     };

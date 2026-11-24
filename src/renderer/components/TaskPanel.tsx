@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { PaginationControls } from './PaginationControls';
 import { useTasks } from '../hooks/useTasks';
+import { resolveTaskSelectionToggle } from '../utils/taskSelection';
 import { clampPage, getPageCount, getPageSlice } from '../utils/pagination';
 import {
   TASK_PRIORITY_LABELS,
@@ -404,7 +405,7 @@ export function TaskPanel({ selectionLocked }: TaskPanelProps): JSX.Element {
                       <button
                         type="button"
                         className="task-select-button"
-                        onClick={() => selectTask(task.id)}
+                        onClick={() => selectTask(resolveTaskSelectionToggle(selectedTaskId, task.id))}
                         disabled={selectionLocked || isMutating}
                         aria-pressed={task.id === selectedTaskId}
                       >

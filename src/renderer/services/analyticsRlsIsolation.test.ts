@@ -39,6 +39,7 @@ describe.skipIf(!hasRlsTestEnv)('analytics RLS isolation', () => {
       ended_at: '2026-08-31T10:25:00.000Z',
       paused_seconds: 0,
       interruption_count: 1,
+      break_target_minutes: 5,
       status: 'completed',
     });
 

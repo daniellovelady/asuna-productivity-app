@@ -45,6 +45,7 @@ BEGIN
     ended_at,
     paused_seconds,
     interruption_count,
+    break_target_minutes,
     status
   ) VALUES
     (
@@ -56,6 +57,7 @@ BEGIN
       '2026-08-27 09:25:00+00',
       300,
       1,
+      5,
       'completed'
     ),
     (
@@ -67,6 +69,7 @@ BEGIN
       '2026-08-27 14:30:00+00',
       0,
       0,
+      5,
       'completed'
     ),
     (
@@ -78,6 +81,7 @@ BEGIN
       '2026-08-28 10:25:00+00',
       600,
       2,
+      5,
       'completed'
     ),
     (
@@ -89,6 +93,7 @@ BEGIN
       '2026-08-28 15:15:00+00',
       0,
       0,
+      5,
       'completed'
     )
   ON CONFLICT (id) DO NOTHING;

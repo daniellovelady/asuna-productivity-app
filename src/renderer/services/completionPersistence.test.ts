@@ -1,14 +1,19 @@
 import { describe, expect, it, vi } from 'vitest';
+import { focusIntentToPersistenceContext } from '../../shared/focus/focusStartIntent';
 import type { CompletedFocusSession } from '../../shared/focus/types';
 import { createCompletionPersistence } from './completionPersistence';
 
 const completed: CompletedFocusSession = {
   id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  ownerUserId: 'user-id',
   targetDurationMs: 25 * 60_000,
   elapsedFocusMs: 25 * 60_000,
   startedAt: 1_000,
   endedAt: 2_000,
   accumulatedPausedMs: 0,
+  interruptionCount: 0,
+  breakTargetMinutes: 5,
+  breakTargetOwnerMatched: true,
 };
 
 describe('createCompletionPersistence', () => {
@@ -21,10 +26,15 @@ describe('createCompletionPersistence', () => {
       acknowledgeCompletion,
     });
 
-    const saved = await persistence.persistPendingCompletion(completed, 'task-id', 'Demo task');
+    const persistenceContext = focusIntentToPersistenceContext({
+      kind: 'task',
+      taskId: 'task-id',
+      titleSnapshot: 'Demo task',
+    });
+    const saved = await persistence.persistPendingCompletion(completed, persistenceContext);
 
     expect(saved).toBe(true);
-    expect(saveEndedSession).toHaveBeenCalledWith(completed, 'task-id', 'Demo task');
+    expect(saveEndedSession).toHaveBeenCalledWith(completed, persistenceContext);
     expect(acknowledgeCompletion).toHaveBeenCalledWith(completed.id);
     expect(persistence.getState().saveError).toBeNull();
   });
@@ -43,8 +53,9 @@ describe('createCompletionPersistence', () => {
       acknowledgeCompletion,
     });
 
-    const first = persistence.persistPendingCompletion(completed, null, null);
-    const second = persistence.persistPendingCompletion(completed, null, null);
+    const noneContext = focusIntentToPersistenceContext({ kind: 'none' });
+    const first = persistence.persistPendingCompletion(completed, noneContext);
+    const second = persistence.persistPendingCompletion(completed, noneContext);
 
     resolveSave?.();
     await first;
@@ -63,7 +74,10 @@ describe('createCompletionPersistence', () => {
       acknowledgeCompletion,
     });
 
-    const saved = await persistence.persistPendingCompletion(completed, null, null);
+    const saved = await persistence.persistPendingCompletion(
+      completed,
+      focusIntentToPersistenceContext({ kind: 'none' }),
+    );
 
     expect(saved).toBe(false);
     expect(acknowledgeCompletion).not.toHaveBeenCalled();
@@ -82,8 +96,9 @@ describe('createCompletionPersistence', () => {
       acknowledgeCompletion,
     });
 
-    await persistence.persistPendingCompletion(completed, null, null);
-    const retried = await persistence.persistPendingCompletion(completed, null, null);
+    const noneContext = focusIntentToPersistenceContext({ kind: 'none' });
+    await persistence.persistPendingCompletion(completed, noneContext);
+    const retried = await persistence.persistPendingCompletion(completed, noneContext);
 
     expect(retried).toBe(true);
     expect(saveEndedSession).toHaveBeenCalledTimes(2);

@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  focusIntentToPersistenceContext,
+  type FocusPersistenceContext,
+} from '../../shared/focus/focusStartIntent';
 import type { CompletedFocusSession, FocusEngineState } from '../../shared/focus/types';
 import { activityCloudService } from '../services/activityCloudService';
 import { activityService } from '../services/activityService';
 import { createCompletionPersistence } from '../services/completionPersistence';
 import { focusSessionCloudService } from '../services/focusSessionCloudService';
 import { focusSessionService } from '../services/focusSession';
+import {
+  registerFocusSessionFlushHandler,
+} from '../services/focusSessionLifecycleService';
 import { formatDurationMinutes, formatDurationMs } from '../utils/formatDuration';
 
 const POLL_INTERVAL_MS = 1000;
@@ -45,8 +52,8 @@ export function useFocusSession(
   const pendingCompletionTaskTitleRef = useRef<string | null>(null);
   const persistenceRef = useRef(
     createCompletionPersistence({
-      saveEndedSession: (completed, taskId, taskTitleSnapshot) =>
-        focusSessionCloudService.saveEndedSession(completed, taskId, taskTitleSnapshot),
+      saveEndedSession: (completed, persistence) =>
+        focusSessionCloudService.saveEndedSession(completed, persistence),
       acknowledgeCompletion: (sessionId) =>
         focusSessionService.acknowledgeCompletion(sessionId),
     }),
@@ -73,22 +80,39 @@ export function useFocusSession(
     setIsSavingCompletion(persistenceState.savingSessionId !== null);
   }, []);
 
+  const resolvePersistenceContext = useCallback((nextState: FocusEngineState): FocusPersistenceContext => {
+    if (nextState.pendingFocusPersistence) {
+      return nextState.pendingFocusPersistence;
+    }
+
+    if (pendingCompletionTaskIdRef.current === null && sessionTaskIdRef.current !== null) {
+      pendingCompletionTaskIdRef.current = sessionTaskIdRef.current;
+    }
+
+    if (pendingCompletionTaskTitleRef.current === null && sessionTaskTitleRef.current !== null) {
+      pendingCompletionTaskTitleRef.current = sessionTaskTitleRef.current;
+    }
+
+    const taskId = pendingCompletionTaskIdRef.current;
+    const taskTitleSnapshot = pendingCompletionTaskTitleRef.current;
+
+    if (taskId && taskTitleSnapshot) {
+      return focusIntentToPersistenceContext({
+        kind: 'task',
+        taskId,
+        titleSnapshot: taskTitleSnapshot,
+      });
+    }
+
+    return focusIntentToPersistenceContext({ kind: 'none' });
+  }, []);
+
   const persistPendingCompletion = useCallback(
-    async (completed: CompletedFocusSession) => {
-      if (pendingCompletionTaskIdRef.current === null && sessionTaskIdRef.current !== null) {
-        pendingCompletionTaskIdRef.current = sessionTaskIdRef.current;
-      }
-
-      if (pendingCompletionTaskTitleRef.current === null && sessionTaskTitleRef.current !== null) {
-        pendingCompletionTaskTitleRef.current = sessionTaskTitleRef.current;
-      }
-
-      const taskId = pendingCompletionTaskIdRef.current;
-      const taskTitleSnapshot = pendingCompletionTaskTitleRef.current;
+    async (completed: CompletedFocusSession, nextState: FocusEngineState) => {
+      const persistence = resolvePersistenceContext(nextState);
       const saved = await persistenceRef.current.persistPendingCompletion(
         completed,
-        taskId,
-        taskTitleSnapshot,
+        persistence,
       );
       syncPersistenceState();
 
@@ -103,7 +127,7 @@ export function useFocusSession(
         await options?.onSessionSaved?.();
       }
     },
-    [syncPersistenceState, options?.onSessionSaved, persistSessionActivitySamples],
+    [syncPersistenceState, options?.onSessionSaved, persistSessionActivitySamples, resolvePersistenceContext],
   );
 
   const handlePendingCompletion = useCallback(
@@ -112,15 +136,7 @@ export function useFocusSession(
         return;
       }
 
-      if (pendingCompletionTaskIdRef.current === null) {
-        pendingCompletionTaskIdRef.current = sessionTaskIdRef.current;
-      }
-
-      if (pendingCompletionTaskTitleRef.current === null) {
-        pendingCompletionTaskTitleRef.current = sessionTaskTitleRef.current;
-      }
-
-      await persistPendingCompletion(nextState.pendingCompletion);
+      await persistPendingCompletion(nextState.pendingCompletion, nextState);
     },
     [persistPendingCompletion],
   );
@@ -140,6 +156,26 @@ export function useFocusSession(
       setIsLoading(false);
     }
   }, [handlePendingCompletion]);
+
+  useEffect(() => {
+    registerFocusSessionFlushHandler(async () => {
+      const currentState = await focusSessionService.getState();
+
+      if (currentState.activeSession) {
+        const result = await focusSessionService.stop();
+        await handlePendingCompletion(result.state);
+        return;
+      }
+
+      if (currentState.pendingCompletion) {
+        await persistPendingCompletion(currentState.pendingCompletion);
+      }
+    });
+
+    return () => {
+      registerFocusSessionFlushHandler(null);
+    };
+  }, [handlePendingCompletion, persistPendingCompletion]);
 
   useEffect(() => {
     void refreshState();
@@ -179,7 +215,11 @@ export function useFocusSession(
 
   const start = useCallback(async () => {
     try {
-      const nextState = await focusSessionService.start();
+      const nextState = await focusSessionService.start(
+        selectedTaskId && options?.selectedTaskTitle
+          ? { taskId: selectedTaskId, titleSnapshot: options.selectedTaskTitle }
+          : undefined,
+      );
       sessionTaskIdRef.current = selectedTaskId;
       sessionTaskTitleRef.current = selectedTaskId
         ? (options?.selectedTaskTitle ?? null)
@@ -227,8 +267,11 @@ export function useFocusSession(
 
     persistenceRef.current.clearSaveError();
     syncPersistenceState();
-    await persistPendingCompletion(state.pendingCompletion);
-  }, [persistPendingCompletion, state?.pendingCompletion, syncPersistenceState]);
+    if (!state) {
+      return;
+    }
+    await persistPendingCompletion(state.pendingCompletion, state);
+  }, [persistPendingCompletion, state, syncPersistenceState]);
 
   const sessionStatus = state?.activeSession?.status ?? 'idle';
   const isIdle = sessionStatus === 'idle';

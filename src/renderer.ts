@@ -27,12 +27,22 @@
  */
 
 import './index.css';
+import {
+  installRendererGlobalErrorHandlers,
+  rendererBootLog,
+  setRendererBootStage,
+} from './renderer/diagnostics/rendererBoot';
 import { mountApp } from './renderer/mountApp';
+
+rendererBootLog('module-start');
+installRendererGlobalErrorHandlers();
 
 const root = document.getElementById('app');
 
 if (root) {
+  rendererBootLog('root-element-found');
   mountApp(root);
 } else {
-  console.error('Renderer root element #app was not found.');
+  setRendererBootStage('root-element-missing');
+  console.error('[renderer-boot] root-element-missing id=#app');
 }

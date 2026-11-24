@@ -1,10 +1,10 @@
+import type { FocusPersistenceContext } from '../../shared/focus/focusStartIntent';
 import type { CompletedFocusSession } from '../../shared/focus/types';
 
 export interface CompletionPersistenceDeps {
   saveEndedSession: (
     completed: CompletedFocusSession,
-    taskId: string | null,
-    taskTitleSnapshot: string | null,
+    persistence: FocusPersistenceContext,
   ) => Promise<unknown>;
   acknowledgeCompletion: (sessionId: string) => Promise<unknown>;
 }
@@ -25,8 +25,7 @@ export function createCompletionPersistence(deps: CompletionPersistenceDeps) {
 
   const persistPendingCompletion = async (
     completed: CompletedFocusSession,
-    taskId: string | null,
-    taskTitleSnapshot: string | null,
+    persistence: FocusPersistenceContext,
   ): Promise<boolean> => {
     if (savingSessionId === completed.id) {
       return false;
@@ -36,7 +35,7 @@ export function createCompletionPersistence(deps: CompletionPersistenceDeps) {
     saveError = null;
 
     try {
-      await deps.saveEndedSession(completed, taskId, taskTitleSnapshot);
+      await deps.saveEndedSession(completed, persistence);
       await deps.acknowledgeCompletion(completed.id);
       savingSessionId = null;
       return true;

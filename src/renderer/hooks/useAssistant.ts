@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { AssistantQueueState } from '../../shared/activity/types';
+import type { NotificationAction } from '../../shared/notifications/types';
 import { activityService } from '../services/activityService';
+import { notificationActionService } from '../services/notificationActionService';
 
 export function useAssistant() {
   const [queueState, setQueueState] = useState<AssistantQueueState>({
@@ -36,14 +38,17 @@ export function useAssistant() {
     };
   }, []);
 
-  const dismiss = useCallback(async (messageId: string) => {
-    const nextState = await activityService.dismissAssistantMessage(messageId);
-    setQueueState(nextState);
+  const executeAction = useCallback(async (messageId: string, action: NotificationAction) => {
+    const result = await notificationActionService.executeAction(messageId, action);
+    setQueueState(result.queueState);
+    if (!result.ok) {
+      throw new Error(result.reason ?? 'Action could not be completed.');
+    }
   }, []);
 
   return {
     currentMessage: queueState.current,
     pendingCount: queueState.pendingCount,
-    dismiss,
+    executeAction,
   };
 }

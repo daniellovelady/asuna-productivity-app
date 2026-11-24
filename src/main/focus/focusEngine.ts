@@ -1,5 +1,10 @@
 import { randomUUID } from 'crypto';
 import {
+  focusIntentToPersistenceContext,
+  type FocusPersistenceContext,
+  type FocusStartIntent,
+} from '../../shared/focus/focusStartIntent';
+import {
   CompletedFocusSession,
   FocusEngineError,
   FocusEngineState,
@@ -7,17 +12,28 @@ import {
   FocusSessionStatus,
 } from '../../shared/focus/types';
 import { assertValidFocusDurationMinutes } from '../../shared/focus/validation';
+import { resolveBreakTargetMinutes } from './breakTargetSnapshot';
+import {
+  clearTrackingDerivedInterruptionSignals,
+  createInterruptionEpisodeState,
+  setInterruptionSignal,
+  type InterruptionEpisodeState,
+} from './interruptionSignals';
 
 const DEFAULT_DURATION_MINUTES = 25;
 const AUTO_COMPLETE_INTERVAL_MS = 1000;
 
 interface ActiveFocusSession {
   id: string;
+  ownerUserId: string | null;
   status: FocusSessionStatus;
   targetDurationMs: number;
   startedAt: number;
   accumulatedPausedMs: number;
   pauseStartedAt: number | null;
+  interruptionCount: number;
+  interruptionSignals: InterruptionEpisodeState['interruptionSignals'];
+  interruptionEpisodeActive: boolean;
 }
 
 export type NowFn = () => number;
@@ -43,37 +59,88 @@ function toSnapshot(session: ActiveFocusSession, now: number): FocusSessionSnaps
     startedAt: session.startedAt,
     accumulatedPausedMs: session.accumulatedPausedMs,
     pauseStartedAt: session.pauseStartedAt,
+    interruptionCount: session.interruptionCount,
   };
 }
 
-function toCompletedSession(session: ActiveFocusSession, now: number): CompletedFocusSession {
+function toCompletedSession(
+  session: ActiveFocusSession,
+  now: number,
+): CompletedFocusSession {
+  const breakTarget = resolveBreakTargetMinutes(session.ownerUserId);
+
   return {
     id: session.id,
+    ownerUserId: session.ownerUserId ?? '',
     targetDurationMs: session.targetDurationMs,
     elapsedFocusMs: getElapsedFocusMs(session, now),
     startedAt: session.startedAt,
     endedAt: now,
     accumulatedPausedMs: session.accumulatedPausedMs,
+    interruptionCount: session.interruptionCount,
+    breakTargetMinutes: breakTarget.breakTargetMinutes,
+    breakTargetOwnerMatched: breakTarget.ownerMatched,
+  };
+}
+
+function applyEpisodeState(
+  session: ActiveFocusSession,
+  episodeState: InterruptionEpisodeState,
+): void {
+  session.interruptionCount = episodeState.interruptionCount;
+  session.interruptionSignals = episodeState.interruptionSignals;
+  session.interruptionEpisodeActive = episodeState.interruptionEpisodeActive;
+}
+
+function getEpisodeState(session: ActiveFocusSession): InterruptionEpisodeState {
+  return {
+    interruptionCount: session.interruptionCount,
+    interruptionSignals: session.interruptionSignals,
+    interruptionEpisodeActive: session.interruptionEpisodeActive,
   };
 }
 
 export type FocusSessionCompletedListener = (completed: CompletedFocusSession) => void;
 
+export type FocusRunningTickListener = (sessionId: string, elapsedFocusMs: number) => void;
+
 export class FocusEngine {
   private activeSession: ActiveFocusSession | null = null;
+
+  private authenticatedUserId: string | null = null;
+
+  private defaultDurationMinutes = DEFAULT_DURATION_MINUTES;
 
   private selectedDurationMinutes = DEFAULT_DURATION_MINUTES;
 
   private pendingCompletion: CompletedFocusSession | null = null;
 
+  private activeFocusContext: FocusStartIntent | null = null;
+
+  private pendingFocusPersistence: FocusPersistenceContext | null = null;
+
   private autoCompleteTimer: NodeJS.Timeout | null = null;
 
   private onSessionCompleted: FocusSessionCompletedListener | null = null;
 
+  private onRunningTick: FocusRunningTickListener | null = null;
+
   constructor(private readonly now: NowFn = Date.now) {}
+
+  setAuthContext(userId: string | null): void {
+    this.authenticatedUserId = userId;
+
+    if (userId === null || (this.activeSession !== null && userId !== this.activeSession.ownerUserId)) {
+      this.clearTrackingDerivedSignals();
+    }
+  }
 
   setOnSessionCompleted(listener: FocusSessionCompletedListener | null): void {
     this.onSessionCompleted = listener;
+  }
+
+  setOnRunningTick(listener: FocusRunningTickListener | null): void {
+    this.onRunningTick = listener;
   }
 
   startAutoCompleteTick(): void {
@@ -104,6 +171,8 @@ export class FocusEngine {
       activeSession: this.activeSession ? toSnapshot(this.activeSession, now) : null,
       selectedDurationMinutes: this.selectedDurationMinutes,
       pendingCompletion: this.pendingCompletion,
+      activeFocusContext: this.activeFocusContext,
+      pendingFocusPersistence: this.pendingFocusPersistence,
     };
   }
 
@@ -118,7 +187,27 @@ export class FocusEngine {
     return this.getState();
   }
 
-  start(): FocusEngineState {
+  applyDefaultDuration(minutes: unknown): FocusEngineState {
+    if (!Number.isInteger(minutes)) {
+      return this.getState();
+    }
+
+    try {
+      assertValidFocusDurationMinutes(minutes);
+    } catch {
+      return this.getState();
+    }
+
+    this.defaultDurationMinutes = minutes;
+
+    if (this.activeSession === null) {
+      this.selectedDurationMinutes = minutes;
+    }
+
+    return this.getState();
+  }
+
+  start(intent: FocusStartIntent = { kind: 'none' }): FocusEngineState {
     if (this.pendingCompletion !== null) {
       throw new FocusEngineError(
         'Finish saving the previous session before starting a new one.',
@@ -129,15 +218,26 @@ export class FocusEngine {
       throw new FocusEngineError('A focus session is already active.');
     }
 
+    if (this.authenticatedUserId === null) {
+      throw new FocusEngineError('Sign-in context is not ready. Try again in a moment.');
+    }
+
     const now = this.now();
+    const episodeState = createInterruptionEpisodeState();
+
+    this.activeFocusContext = intent;
 
     this.activeSession = {
       id: createSessionId(),
+      ownerUserId: this.authenticatedUserId,
       status: 'running',
       targetDurationMs: this.selectedDurationMinutes * 60_000,
       startedAt: now,
       accumulatedPausedMs: 0,
       pauseStartedAt: null,
+      interruptionCount: episodeState.interruptionCount,
+      interruptionSignals: episodeState.interruptionSignals,
+      interruptionEpisodeActive: episodeState.interruptionEpisodeActive,
     };
 
     return this.getState();
@@ -154,6 +254,7 @@ export class FocusEngine {
 
     this.activeSession.status = 'paused';
     this.activeSession.pauseStartedAt = this.now();
+    this.setManualPauseSignal(true);
 
     return this.getState();
   }
@@ -171,6 +272,7 @@ export class FocusEngine {
     this.activeSession.accumulatedPausedMs += now - this.activeSession.pauseStartedAt;
     this.activeSession.pauseStartedAt = null;
     this.activeSession.status = 'running';
+    this.setManualPauseSignal(false);
 
     return this.getState();
   }
@@ -198,8 +300,69 @@ export class FocusEngine {
     }
 
     this.pendingCompletion = null;
+    this.pendingFocusPersistence = null;
+    this.activeFocusContext = null;
 
     return this.getState();
+  }
+
+  setManualPauseSignal(active: boolean): void {
+    if (this.activeSession === null) {
+      return;
+    }
+
+    this.applySignal('manualPause', active);
+  }
+
+  setIdleSignal(active: boolean, trackingRunning: boolean): void {
+    if (this.activeSession === null) {
+      return;
+    }
+
+    if (active) {
+      if (this.activeSession.status !== 'running' || !trackingRunning) {
+        return;
+      }
+    }
+
+    this.applySignal('idle', active);
+  }
+
+  setDistractionSignal(active: boolean, trackingRunning = true): void {
+    if (this.activeSession === null) {
+      return;
+    }
+
+    if (active && (this.activeSession.status !== 'running' || !trackingRunning)) {
+      return;
+    }
+
+    this.applySignal('distraction', active);
+  }
+
+  clearTrackingDerivedSignals(): void {
+    if (this.activeSession === null) {
+      return;
+    }
+
+    applyEpisodeState(
+      this.activeSession,
+      clearTrackingDerivedInterruptionSignals(getEpisodeState(this.activeSession)),
+    );
+  }
+
+  private applySignal(
+    key: 'manualPause' | 'idle' | 'distraction',
+    active: boolean,
+  ): void {
+    if (this.activeSession === null) {
+      return;
+    }
+
+    applyEpisodeState(
+      this.activeSession,
+      setInterruptionSignal(getEpisodeState(this.activeSession), key, active),
+    );
   }
 
   private completeActiveSession(): CompletedFocusSession {
@@ -210,6 +373,11 @@ export class FocusEngine {
     const now = this.now();
     const completed = toCompletedSession(this.activeSession, now);
     this.activeSession = null;
+    this.selectedDurationMinutes = this.defaultDurationMinutes;
+    this.pendingFocusPersistence = focusIntentToPersistenceContext(
+      this.activeFocusContext ?? { kind: 'none' },
+    );
+    this.activeFocusContext = null;
 
     if (this.pendingCompletion === null) {
       this.pendingCompletion = completed;
@@ -227,6 +395,8 @@ export class FocusEngine {
 
     const now = this.now();
     const elapsedFocusMs = getElapsedFocusMs(this.activeSession, now);
+
+    this.onRunningTick?.(this.activeSession.id, elapsedFocusMs);
 
     if (elapsedFocusMs >= this.activeSession.targetDurationMs) {
       this.completeActiveSession();

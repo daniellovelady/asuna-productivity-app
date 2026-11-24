@@ -6,7 +6,7 @@ import type {
 export interface FocusApi {
   getState: () => Promise<FocusEngineState>;
   setDuration: (minutes: number) => Promise<FocusEngineState>;
-  start: () => Promise<FocusEngineState>;
+  start: (task?: { taskId: string; titleSnapshot: string }) => Promise<FocusEngineState>;
   pause: () => Promise<FocusEngineState>;
   resume: () => Promise<FocusEngineState>;
   stop: () => Promise<{ state: FocusEngineState; completed: CompletedFocusSession }>;

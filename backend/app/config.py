@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     coach_max_turns: int = Field(default=6, ge=1)
     coach_max_active_tasks_returned: int = Field(default=25, ge=1)
     enable_reviewer_agent: bool = False
+    assistant_variation_timeout_seconds: float = Field(default=5.0, gt=0)
 
 
 @lru_cache

@@ -11,7 +11,6 @@ export interface ActivityApi {
   disable: () => Promise<ActivityTrackingState>;
   pause: () => Promise<ActivityTrackingState>;
   resume: () => Promise<ActivityTrackingState>;
-  setAuthContext: (userId: string | null) => Promise<ActivityTrackingState>;
   updateTriggerContext: (activeTaskCount: number) => Promise<void>;
   getBufferedSessionSamples: (sessionId: string) => Promise<BufferedActivitySample[]>;
   acknowledgeSessionSamplesPersisted: (sessionId: string) => Promise<void>;

@@ -30,7 +30,6 @@ export function useActivityTracking(isAuthenticated: boolean, userId: string | n
 
     const initialize = async () => {
       try {
-        await activityService.setAuthContext(userId);
         const [trackingState, optedIn] = await Promise.all([
           activityService.getState(),
           preferencesService.getTrackingEnabled(),

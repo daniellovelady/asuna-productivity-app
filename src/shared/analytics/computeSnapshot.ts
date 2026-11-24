@@ -118,7 +118,6 @@ export function computeAnalyticsSnapshot(input: ComputeSnapshotInput): Analytics
     input.focusSessions,
     window.windowStartUtc,
     window.windowEndUtc,
-    input.breakMinutes,
   );
 
   const samplesInWindow = input.activitySamples.filter((sample) => {
@@ -159,7 +158,6 @@ export function getBreakComplianceDetails(input: ComputeSnapshotInput): {
     input.focusSessions,
     window.windowStartUtc,
     window.windowEndUtc,
-    input.breakMinutes,
   );
 
   return {

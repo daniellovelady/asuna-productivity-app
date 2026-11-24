@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { useCoach } from '../hooks/useCoach';
+import { useWeeklyReport } from '../hooks/useWeeklyReport';
+import { WeeklyReportSection } from './WeeklyReportSection';
 
 export function InsightsView(): JSX.Element {
   const [question, setQuestion] = useState('');
   const coach = useCoach();
+  const weeklyReport = useWeeklyReport();
 
   const handleSubmit = () => {
     if (!question.trim()) {
@@ -15,7 +18,19 @@ export function InsightsView(): JSX.Element {
   const result = coach.response?.result;
 
   return (
-    <section className="insights-view" aria-label="Productivity coach">
+    <section className="insights-view" aria-label="Productivity insights">
+      <WeeklyReportSection
+        report={weeklyReport.report}
+        isLoading={weeklyReport.isLoading}
+        error={weeklyReport.error}
+        isStale={weeklyReport.isStale}
+        onGenerate={() => {
+          void weeklyReport.generate();
+        }}
+      />
+
+      <hr className="insights-divider" />
+
       <h2 className="insights-title">Insights Coach</h2>
       <p className="insights-description">
         Ask questions about your productivity data. The coach is read-only and uses your

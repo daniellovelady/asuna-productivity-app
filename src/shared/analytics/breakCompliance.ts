@@ -3,6 +3,7 @@ export interface FocusSessionForBreak {
   status: 'completed' | 'abandoned' | 'running' | 'paused';
   startedAt: string;
   endedAt: string | null;
+  breakTargetMinutes: number;
 }
 
 const MAX_BREAK_GAP_MS = 120 * 60 * 1000;
@@ -37,11 +38,9 @@ export function computeBreakCompliance(
   sessions: FocusSessionForBreak[],
   windowStartUtc: string,
   windowEndUtc: string,
-  breakMinutes: number,
 ): BreakComplianceResult {
   const windowStartMs = new Date(windowStartUtc).getTime();
   const windowEndMs = new Date(windowEndUtc).getTime();
-  const requiredGapMs = breakMinutes * 60 * 1000;
   let compliantCount = 0;
   let eligibleCount = 0;
 
@@ -69,6 +68,7 @@ export function computeBreakCompliance(
     }
 
     eligibleCount += 1;
+    const requiredGapMs = previous.breakTargetMinutes * 60 * 1000;
 
     if (gapMs >= requiredGapMs) {
       compliantCount += 1;

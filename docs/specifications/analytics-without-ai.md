@@ -188,8 +188,28 @@ for ended sessions in the analytics window.
 
 Do not infer interruptions from application switching.
 
-If interruption_count is currently zero because no interruption event was
-recorded, display the deterministic zero rather than inventing interruptions.
+An interruption is a distinct episode in which continuity of an active focus
+session is broken. The app records interruptions deterministically in the main
+process using independent signal state:
+
+- manual pause while a focus session is active
+- OS idle >= 180 seconds while focus is running and activity tracking is running
+- distracting-app threshold crossed while focus is running and activity tracking
+  is running (uses the existing 15-minute light threshold in the trigger engine)
+
+Multiple overlapping signals during the same continuity break increment the count
+once. The episode ends only when all active signals clear.
+
+When activity tracking is off, manual pauses may still be counted. Idle and
+distraction-derived interruptions are not fabricated because A.S.U.N.A. cannot
+observe them. Tracking off means those sources are unknown, not zero real-world
+distraction.
+
+The stored `distraction_threshold_minutes` preference is synced but not yet wired
+to the trigger engine or Settings UI; that is a known follow-up.
+
+If interruption_count is zero because no interruption episode was recorded,
+display the deterministic zero rather than inventing interruptions.
 
 ---
 
@@ -241,9 +261,22 @@ For an eligible pair:
     break_gap =
         next_session.started_at - previous_session.ended_at
 
+The previous session must be completed with a valid `ended_at`. The next session
+is the earliest later focus session for the same user and may be completed,
+abandoned, running, or paused. Starting the next session ends the break window;
+using it for compliance does not require that next session to be completed.
+
 The break is compliant when:
 
-    break_gap >= preferences.break_minutes
+    break_gap >= previous_session.break_target_minutes
+
+Each ended focus session snapshots `break_target_minutes` at session end from the
+authenticated user's current break preference at that moment. Changing Settings
+later must not reinterpret historical sessions.
+
+Legacy rows created before this snapshot existed may have been backfilled from
+the user's preferences at migration time; those values are approximations and
+remain fixed afterward.
 
 Break compliance percentage:
 
@@ -258,9 +291,6 @@ If there are no eligible break opportunities, display:
 
 The dashboard should make clear that this is based on gaps between consecutive
 focus sessions and is not direct break event tracking.
-
-Changing the current break_minutes preference may affect this MVP calculation.
-Historical break target snapshots may be added later.
 
 ---
 

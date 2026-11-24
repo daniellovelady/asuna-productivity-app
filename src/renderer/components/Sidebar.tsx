@@ -1,14 +1,11 @@
 import { useAuth } from '../hooks/useAuth';
+import {
+  NAV_ITEMS,
+  isNavItemSelected,
+  type AppView,
+} from '../navigation/appNavigation';
 
-export type AppView = 'dashboard' | 'insights';
-
-const NAV_ITEMS: Array<{ label: string; view: AppView }> = [
-  { label: 'Dashboard', view: 'dashboard' },
-  { label: 'Tasks', view: 'dashboard' },
-  { label: 'History', view: 'dashboard' },
-  { label: 'Insights', view: 'insights' },
-  { label: 'Settings', view: 'dashboard' },
-];
+export type { AppView } from '../navigation/appNavigation';
 
 type SidebarProps = {
   activeView: AppView;
@@ -31,11 +28,9 @@ export function Sidebar({ activeView, onNavigate }: SidebarProps): JSX.Element {
             <button
               type="button"
               className={
-                item.view === activeView && item.label === 'Insights'
+                isNavItemSelected(activeView, item)
                   ? 'nav-item nav-item--selected nav-item--button'
-                  : item.view === 'dashboard' && activeView === 'dashboard' && item.label === 'Dashboard'
-                    ? 'nav-item nav-item--selected nav-item--button'
-                    : 'nav-item nav-item--button'
+                  : 'nav-item nav-item--button'
               }
               onClick={() => onNavigate(item.view)}
             >

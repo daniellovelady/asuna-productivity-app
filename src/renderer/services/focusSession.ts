@@ -11,7 +11,7 @@ function getFocusApi(): FocusApi {
 export const focusSessionService = {
   getState: () => getFocusApi().getState(),
   setDuration: (minutes: number) => getFocusApi().setDuration(minutes),
-  start: () => getFocusApi().start(),
+  start: (task?: { taskId: string; titleSnapshot: string }) => getFocusApi().start(task),
   pause: () => getFocusApi().pause(),
   resume: () => getFocusApi().resume(),
   stop: () => getFocusApi().stop(),
